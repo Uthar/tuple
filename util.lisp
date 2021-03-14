@@ -10,7 +10,6 @@
    #:doc
    #:fn
    #:for
-   #:random-sort
    #:range
    #:range*
    #:take))
