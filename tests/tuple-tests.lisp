@@ -1,4 +1,5 @@
 (ql:quickload :fiveam)
+(ql:quickload :alexandria)
 
 (in-package :cl-user)
 
@@ -44,12 +45,13 @@
 (run!)
 
 ;; (time (loop for n below 10000000
-;;       for tuple = (empty-tuple) then (conj tuple n)
-;;       finally (return tuple)))
+;;             for tuple = (empty-tuple) then (conj tuple n)
+;;             finally (return tuple)))
 
 ;; (time (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 100000000))))
 
 ;; (defvar 10m-tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 10000000))))
+;; (ql:quickload:
 
 ;; (time (dotimes (n 10000000) (insert 10m-tuple n :foo)))
 ;; (time (dotimes (n 10000000) (lookup 10m-tuple n)))
