@@ -18,7 +18,17 @@
     (is (eq (tuple-count tuple) 100000))
     (is (loop for n below 100000 always (eq (lookup tuple n) n)))))
 
-(declaim (optimize debug))
+(test immutable
+  (let* ((tup1 (reduce 'conj '("foo" "bar") :initial-value (empty-tuple)))
+         (tup2 (reduce 'conj '("baz" "quux") :initial-value tup1)))
+    (insert tup2 0 :x)
+    (is (equal (lookup tup1 0) "foo"))
+    (is (equal (lookup tup2 0) "foo"))
+    (insert tup2 1 :y)
+    (is (equal (lookup tup1 1) "bar"))
+    (is (equal (lookup tup2 1) "bar"))
+    (is (equal (lookup tup2 2) "baz"))
+    (is (equal (lookup tup2 3) "quux"))))
 
 (test 100k-insert
   (let* ((tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 10000))))
