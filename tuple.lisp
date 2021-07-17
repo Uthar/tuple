@@ -28,11 +28,11 @@ values. Values exist on the tuple leaves, when tuple-shift is 0.
    "
 A tuple is an integer-indexed, immutable collection of items.
 
-Shift is the number of bytes to shift left when descending down the
-tree of nodes to find the next nodes' index.
+Shift is the number of bytes to shift the index by when descending
+down the tree of nodes to find the next nodes' index.
 
 Count is the number of items in the tuple, that is, the number of leaf
-nodes.
+nodes. (?)
    "))
 
 (defun empty-node () (make-instance 'node
@@ -60,6 +60,8 @@ nodes.
         :finally (return
                    (when arr (aref arr (nextid index))))))
 
+(define-symbol-macro next-node (aref (node-array node) nextid))
+
 (defun insert (tuple index val)
   (loop :with root := (copy-node (tuple-root tuple))
         :with node := root
@@ -67,12 +69,12 @@ nodes.
         :for level :downfrom shift :above 0 :by 5
         :for nextid := (nextid index level)
         ;; copy path from the root down the tree
-        :do (symbol-macrolet ((next-node (aref (node-array node) nextid)))
-              (setf next-node (copy-node next-node))
-              (setf node next-node))
+        :do (setf next-node (copy-node next-node))
+            (setf node next-node)
         :finally
            (setf (aref (node-array node) (nextid index)) val)
            (return (make-instance 'tuple :root root :shift shift :count (tuple-count tuple)))))
+
 
 (defun conj (tuple val)
   (let* ((index (tuple-count tuple)) ;; also the length of the new tuple
@@ -98,8 +100,8 @@ nodes.
          (loop :for level :downfrom newshift :above 5 :by 5
                :do (setf nextid (nextid index level))
                ;; but make a new path to leaf
-               :do (setf (aref (node-array node) nextid) (empty-node))
-               :do (setf node (aref (node-array node) nextid)))
+                   (setf next-node (empty-node))
+                   (setf node next-node))
          (setf (aref (node-array node) 0) (make-instance 'node :array (make-array 1)))
          (setf node (aref (node-array node) 0))
          (setf (aref (node-array node) 0) val)
@@ -108,14 +110,14 @@ nodes.
        (progn
          (loop :for level :downfrom shift :above 0 :by 5
                :do (setf nextid (nextid index level))
-               :if (null (aref (node-array node) nextid)) ;; copy the next node in the current node
-                 :do (setf (aref (node-array node) nextid) (empty-node)) ;; assume 32 long nodes
-               :do (setf (aref (node-array node) nextid)
+               :if (null next-node) ;; copy the next node in the current node
+                 :do (setf next-node (empty-node)) ;; assume 32 long nodes
+               :do (setf next-node
                          (make-instance 'node
                                         :array
-                                        (copy-seq (node-array (aref (node-array node) nextid)))))
-               :do (setf node (aref (node-array node) nextid)) ;; set next node as current
-               :do (setf arr (node-array node)))
+                                        (copy-seq (node-array next-node))))
+                   (setf node next-node) ;; set next node as current
+                   (setf arr (node-array node)))
          (with-slots (array) node
            (when (= 32 (length array)) ;; except for leafs
              (setf array (vector))
