@@ -1,20 +1,76 @@
-(defpackage :kpg.util
-  (:nicknames :kpg)
-  (:use :cl :uiop)
-  (:export
-   #:->
-   #:->>
-   #:as->
-   #:copy-directory
-   #:defclass*
-   #:doc
-   #:fn
-   #:for
-   #:range
-   #:range*
-   #:take))
+;; (defpackage :kpg.util
+;;   (:nicknames :kpg)
+;;   (:use :cl :uiop)
+;;   ;; (:import-from :alexandria :hash-table-alist)
+;;   (:export
+;;    #:->
+;;    #:->>
+;;    #:as->
+;;    #:copy-directory
+;;    #:defclass*
+;;    #:doc
+;;    #:fn
+;;    #:for
+;;    #:range
+;;    #:range*
+;;    #:take))
 
-(in-package :kpg.util)
+;; (declaim (optimize (debug 3)))
+
+;; (in-package :cl)
+
+;; (defun dictionary-reader (stream char)
+;;   (declare (ignore char))
+;;   (let ((list (read-delimited-list #\} stream t)))
+;;     (assert (evenp (length list)))
+;;     (apply #'cl-hamt:dict-insert `(,(cl-hamt:empty-dict) ,@list))))
+
+;; (set-macro-character #\{ #'dictionary-reader)
+;; (set-macro-character #\} (get-macro-character #\) nil))
+
+;; (defun vector-reader (stream char)
+;;   (declare (ignore char))
+;;   (eval `(fset:seq ,@(read-delimited-list #\] stream t))))
+
+;; (set-macro-character #\[ #'vector-reader)
+
+;; (make-dispatch-macro-character #\@)
+
+;; (defun hash-table-reader (stream char _)
+;;   (declare (ignore char _))
+;;   (let ((list (read-delimited-list #\} stream t)))
+;;     (assert (evenp (length list)))
+;;     (let ((keys (loop :for x :in list :by #'cddr :collect x))
+;;           (vals (loop :for x :in (rest list) :by #'cddr :collect x)))
+;;       (loop :for k :in keys
+;;             :for v :in vals
+;;             :with h := (make-hash-table :test 'equal)
+;;             :do (setf (gethash k h) v)
+;;             :finally (return h)))))
+
+;; (set-dispatch-macro-character #\@ #\{ #'hash-table-reader)
+
+;; (defun seq-reader (stream char _)
+;;   (declare (ignore char _))
+;;   (loop :for x :in (read-delimited-list #\] stream t)
+;;         :with v := (make-array 10 :adjustable t :fill-pointer 0)
+;;         :do (vector-push-extend x v)
+;;         :finally (return v)))
+
+;; (set-dispatch-macro-character #\@ #\[ #'seq-reader)
+;; (set-macro-character #\] (get-macro-character #\) nil))
+
+;; (defmethod print-object ((object cl-hamt:hash-dict) stream)
+;;   (format stream "{ ")
+;;   (loop :for kv :in (reverse (cl-hamt:dict->alist object))
+;;         :do (format stream "~s ~s " (car kv) (cdr kv)))
+;;   (format stream "}"))
+
+;; (defmethod print-object ((object hash-table) stream)
+;;   (format stream "@{ ")
+;;   (loop :for kv :in (reverse (hash-table-alist object))
+;;         :do (format stream "~s ~s " (car kv) (cdr kv)))
+;;   (format stream "}"))
 
 (defmacro fn (args &body body)
   `(lambda ,args ,@body))
@@ -56,13 +112,13 @@
          (list x y z))
   "
   (reduce (fn (form expansion)
-            (let ((when-form (if (find :when form)
-                                 (nth (1+ (position :when form :from-end t)) form)
-                                 t))
-                  (while-form (if (find :while form)
-                                  (nth (1+ (position :while form :from-end t)) form)
-                                  t)))
-                  ;(let-form nil))
+            (let* ((find-keyword
+                     (lambda (keyword form)
+                       (if (find keyword form)
+                           (nth (1+ (position keyword form :from-end t)) form)
+                           t)))
+                   (when-form (funcall find-keyword :when form))
+                   (while-form (funcall find-keyword :while form)))
               `(loop :for ,(first form) :in ,(second form) :while ,while-form :when ,when-form
                         ,@(if (null expansion)
                               `(:collect ,collect-expr)
@@ -88,24 +144,24 @@
   "Returns a list of the first n elements of list"
   (loop :repeat n :for x :in list :collect x))
 
-(defun copy-directory (src dest)
-  "Copy recursively directory SRC to DEST."
-  (let* ((          src (-> src  ensure-directory-pathname truename))
-         ( initial-dest (-> dest ensure-directory-pathname ensure-directories-exist truename))
-         (prefix-length (-> src  pathname-directory length)))
-    (labels
-        ((dopath (path)
-           (let ((dest (make-pathname
-                        :directory (append (pathname-directory initial-dest)
-                                           (-> path pathname-directory (subseq prefix-length)))
-                        :defaults initial-dest)))
-             (ensure-directories-exist dest)
-             (if (directory-pathname-p path)
-                 (mapcar #'dopath (append (directory-files path)
-                                          (subdirectories path)))
-                 (copy-file path
-                            (make-pathname ; should take device from dest? for windows
-                             :defaults path
-                             :directory (pathname-directory dest))))
-             dest)))
-      (dopath src))))
+;; (defun copy-directory (src dest)
+;;   "Copy recursively directory SRC to DEST."
+;;   (let* ((          src (-> src  ensure-directory-pathname truename))
+;;          ( initial-dest (-> dest ensure-directory-pathname ensure-directories-exist truename))
+;;          (prefix-length (-> src  pathname-directory length)))
+;;     (labels
+;;         ((dopath (path)
+;;            (let ((dest (make-pathname
+;;                         :directory (append (pathname-directory initial-dest)
+;;                                            (-> path pathname-directory (subseq prefix-length)))
+;;                         :defaults initial-dest)))
+;;              (ensure-directories-exist dest)
+;;              (if (directory-pathname-p path)
+;;                  (mapcar #'dopath (append (directory-files path)
+;;                                           (subdirectories path)))
+;;                  (copy-file path
+;;                             (make-pathname ; should take device from dest? for windows
+;;                              :defaults path
+;;                              :directory (pathname-directory dest))))
+;;              dest)))
+;;       (dopath src))))
