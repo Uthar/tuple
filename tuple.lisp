@@ -17,6 +17,10 @@ values. Values exist on the tuple leaves, when tuple-shift is 0.
    (root
     :initarg :root
     :reader tuple-root)
+   (tail
+    :initarg :tail
+    :initform (make-array 32 :initial-element nil)
+    :reader tuple-tail)
    (count
     :initarg :count
     :reader tuple-count))
@@ -43,6 +47,9 @@ nodes.
 (defun nextid (index &optional (shift 0))
   (logand (ash index (- shift)) #b11111))
 
+(defun copy-node (node)
+  (make-instance 'node :array (copy-seq (node-array node))))
+
 (defun lookup (tuple index)
   (loop :with shift := (tuple-shift tuple)
         :with root-array := (node-array (tuple-root tuple))
@@ -54,18 +61,18 @@ nodes.
                    (when arr (aref arr (nextid index))))))
 
 (defun insert (tuple index val)
-  (symbol-macrolet ((next-node (aref (node-array node) nextid)))
-    (loop :with root := (copy-node (tuple-root tuple))
-          :with node := root
-          :with shift := (tuple-shift tuple)
-          :for level :downfrom shift :above 0 :by 5
-          :for nextid := (nextid index level)
-          ;; copy path from the root down the tree
-          :do (setf next-node (copy-node next-node))
-              (setf node next-node)
-          :finally
-             (setf (aref (node-array node) (nextid index)) val)
-             (return (make-instance 'tuple :root root :shift shift :count (tuple-count tuple))))))
+  (loop :with root := (copy-node (tuple-root tuple))
+        :with node := root
+        :with shift := (tuple-shift tuple)
+        :for level :downfrom shift :above 0 :by 5
+        :for nextid := (nextid index level)
+        ;; copy path from the root down the tree
+        :do (symbol-macrolet ((next-node (aref (node-array node) nextid)))
+              (setf next-node (copy-node next-node))
+              (setf node next-node))
+        :finally
+           (setf (aref (node-array node) (nextid index)) val)
+           (return (make-instance 'tuple :root root :shift shift :count (tuple-count tuple)))))
 
 (defun conj (tuple val)
   (let* ((index (tuple-count tuple)) ;; also the length of the new tuple
@@ -82,7 +89,8 @@ nodes.
              (root (empty-node)))
          (setf (aref (node-array root) 0) node)
          (return-from conj (make-instance 'tuple :root root :shift 5 :count 1))))
-      ((= index (expt 2 (+ 5 shift)))
+      ((= index (expt 2 (+ 5 shift))) ;; only this should create a new path
+                                      ;; otherwise just push to a tail vector
        (let ((newroot (empty-node))
              (newshift (+ 5 shift)))
          (setf (aref (node-array newroot) 0) root) ;; share whole thing
