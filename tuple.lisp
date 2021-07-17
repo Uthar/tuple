@@ -44,37 +44,28 @@ nodes.
   (logand (ash index (- shift)) #b11111))
 
 (defun lookup (tuple index)
-  (let ((arr (node-array (tuple-root tuple)))
-        (shift (tuple-shift tuple)))
-    (loop :for level :downfrom shift :above 0 :by 5
-          :for nextid := (nextid index level)
-          :do (setf arr (node-array (aref arr nextid))))
-    (when arr
-      (aref arr (nextid index)))))
+  (loop :with shift := (tuple-shift tuple)
+        :with root-array := (node-array (tuple-root tuple))
+        :for level :downfrom shift :above 0 :by 5
+        :for nextid := (nextid index level)
+        :for arr := (node-array (aref root-array nextid)) :then (node-array (aref arr nextid))
+        ;; leafs are values, not nodes
+        :finally (return
+                   (when arr (aref arr (nextid index))))))
 
 (defun insert (tuple index val)
-  (let* ((shift (tuple-shift tuple))
-         (root (tuple-root tuple))
-         (newroot (make-instance 'node :array (copy-seq (node-array root))))
-         (newshift shift)
-         (nextid nil)
-         (node newroot)
-         (arr (node-array newroot)))
-    (loop :for level :downfrom shift :above 0 :by 5
-          :do (setf nextid (nextid index level))
+  (symbol-macrolet ((next-node (aref (node-array node) nextid)))
+    (loop :with root := (copy-node (tuple-root tuple))
+          :with node := root
+          :with shift := (tuple-shift tuple)
+          :for level :downfrom shift :above 0 :by 5
+          :for nextid := (nextid index level)
           ;; copy path from the root down the tree
-          :do (setf (aref (node-array node) nextid)
-                    (make-instance 'node
-                                   :array
-                                   (copy-seq (node-array (aref (node-array node) nextid)))))
-          :do (setf node (aref (node-array node) nextid)) ;; set next node as current
-          :do (setf arr (node-array node)))
-    ;; same as when shift is 0
-    (setf nextid (nextid index))
-    (with-slots (array) node
-      (setf array (copy-seq arr))
-      (setf (aref array nextid) val))
-    (make-instance 'tuple :root newroot :shift newshift :count (tuple-count tuple))))
+          :do (setf next-node (copy-node next-node))
+              (setf node next-node)
+          :finally
+             (setf (aref (node-array node) (nextid index)) val)
+             (return (make-instance 'tuple :root root :shift shift :count (tuple-count tuple))))))
 
 (defun conj (tuple val)
   (let* ((index (tuple-count tuple)) ;; also the length of the new tuple
