@@ -10,7 +10,8 @@
 
 (test 1-tuple
   (let* ((tuple (conj (empty-tuple) "foo")))
-    (is (eq (tuple-count tuple) 1))))
+    (is (eq (tuple-count tuple) 1))
+    (is (equal (lookup tuple 0) "foo"))))
 
 (test 100k-tuple
   (let* ((tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 100000)))))
@@ -32,15 +33,21 @@
 
 (run!)
 
-(defvar 10m-tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 10000000))))
+;; (time (loop for n below 10000000
+;;       for tuple = (empty-tuple) then (conj tuple n)
+;;       finally (return tuple)))
 
-(time (dotimes (n 10000000) (insert 10m-tuple n :foo)))
-(time (dotimes (n 10000000) (lookup 10m-tuple n)))
+;; (time (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 100000000))))
 
-(ql:quickload :fset)
+;; (defvar 10m-tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 10000000))))
 
-(progn (defvar 10m-seq (reduce 'fset:with-last `(,(fset:empty-seq) ,@(alexandria:iota 10000000)))) nil)
+;; (time (dotimes (n 10000000) (insert 10m-tuple n :foo)))
+;; (time (dotimes (n 10000000) (lookup 10m-tuple n)))
 
-(progn (time (dotimes (n 10000000) (fset:with 10m-seq n :foo))) nil)
+;; (ql:quickload :fset)
 
-(time (dotimes (n 10000000) (fset:lookup 10m-seq n)))
+;; (progn (defvar 10m-seq (reduce 'fset:with-last `(,(fset:empty-seq) ,@(alexandria:iota 10000000)))) nil)
+
+;; (progn (time (dotimes (n 10000000) (fset:with 10m-seq n :foo))) nil)
+
+;; (time (dotimes (n 10000000) (fset:lookup 10m-seq n)))
