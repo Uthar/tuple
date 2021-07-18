@@ -64,13 +64,12 @@ nodes. (?)
 
 (defun insert (tuple index val)
   (loop :with root := (copy-node (tuple-root tuple))
-        :with node := root
         :with shift := (tuple-shift tuple)
         :for level :downfrom shift :above 0 :by 5
         :for nextid := (nextid index level)
         ;; copy path from the root down the tree
-        :do (setf next-node (copy-node next-node))
-            (setf node next-node)
+        :for node := (setf node root next-node (copy-node next-node))
+          :then (setf next-node (copy-node next-node))
         :finally
            (setf (aref (node-array node) (nextid index)) val)
            (return (make-instance 'tuple :root root :shift shift :count (tuple-count tuple)))))
