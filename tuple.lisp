@@ -39,16 +39,30 @@ nodes. (?)
                                     :array
                                     (make-array 32 :initial-element nil)))
 
+(defun single-node () (make-instance 'node
+                                    :array
+                                    (make-array 1 :initial-element nil)))
+
 (defun empty-tuple () (make-instance 'tuple
                                      :root (empty-node)
                                      :count 0
                                      :shift 5))
 
+(declaim (inline nextid)
+         (ftype (function (fixnum &optional (unsigned-byte 6)) fixnum) nextid))
 (defun nextid (index &optional (shift 0))
+  (declare (optimize speed))
   (logand (ash index (- shift)) #b11111))
 
 (defun copy-node (node)
   (make-instance 'node :array (copy-seq (node-array node))))
+
+(defun tuple-next-level? (tuple)
+  (with-slots (count shift) tuple
+    (= count (expt 2 (+ 5 shift)))))
+
+(defun tuple-empty? (tuple)
+  (zerop (tuple-count tuple)))
 
 (defun lookup (tuple index)
   (loop :with shift := (tuple-shift tuple)
@@ -74,60 +88,52 @@ nodes. (?)
            (setf (aref (node-array node) (nextid index)) val)
            (return (make-instance 'tuple :root root :shift shift :count (tuple-count tuple)))))
 
+(defun single-tuple (val)
+  (let ((node (make-instance 'node :array (vector val)))
+        (root (empty-node)))
+    (setf (aref (node-array root) 0) node)
+    (make-instance 'tuple :root root :shift 5 :count 1)))
 
-(defun conj (tuple val)
+(defun conj-share-root (tuple val)
+  (let ((root (empty-node)))
+    (setf (aref (node-array root) 0) (tuple-root tuple)) ;; share whole thing on the 'left'
+    (loop :with index := (tuple-count tuple)
+          :with shift := (+ 5 (tuple-shift tuple))
+          :for level :downfrom shift :above 5 :by 5
+          :for nextid := (nextid index level)
+          ;; but make a new path to leaf
+          :for node := (setf node root next-node (empty-node)) :then (setf next-node (empty-node))
+          :finally
+             (setf (aref (node-array node) 0) (single-node)
+                   node (aref (node-array node) 0)
+                   (aref (node-array node) 0) val)
+             (return (make-instance 'tuple :root root :shift shift :count (1+ index))))))
+
+(defun tuple-push-val (tuple val)
   (let* ((index (tuple-count tuple)) ;; also the length of the new tuple
          (shift (tuple-shift tuple))
-         (root (tuple-root tuple))
-         (newroot (copy-node root))
-         (newshift shift)
-         (nextid nil)
-         (node newroot)
-         (arr (node-array newroot)))
-    (cond
+         (root (copy-node (tuple-root tuple)))
+         (node root))
+    (loop :for level :downfrom shift :above 0 :by 5
+          :for nextid := (nextid index level)
+          :do (setf next-node (if next-node (copy-node next-node) (if (= 5 level) (zero-node) (empty-node)))
+                    node next-node)
+          :finally
+             (return
+               (with-slots (array) node
+                 (setf array
+                       (make-array (1+ (length array))
+                                   :initial-contents (concatenate 'vector array (vector val))))
+                 (make-instance 'tuple :root root :shift shift :count (1+ index)))))))
 
-      ((zerop index)
-       (let ((node (make-instance 'node :array (vector val)))
-             (root (empty-node)))
-         (setf (aref (node-array root) 0) node)
-         (return-from conj (make-instance 'tuple :root root :shift 5 :count 1))))
-
-
-      ((= index (expt 2 (+ 5 shift))) ;; only this should create a new path
-                                      ;; otherwise just push to a tail vector
-       (let ((newroot (empty-node))
-             (newshift (+ 5 shift)))
-         (setf (aref (node-array newroot) 0) root) ;; share whole thing
-         (setf node newroot)
-         (loop :for level :downfrom newshift :above 5 :by 5
-               :do (setf nextid (nextid index level))
-               ;; but make a new path to leaf
-                   (setf next-node (empty-node))
-                   (setf node next-node))
-         (setf (aref (node-array node) 0) (make-instance 'node :array (make-array 1)))
-         (setf node (aref (node-array node) 0))
-         (setf (aref (node-array node) 0) val)
-         (make-instance 'tuple :root newroot :shift newshift :count (1+ index))))
-
-
-      ;; FIXME: replace with insert to tail vector
-      (t
-       (progn
-         (loop :for level :downfrom shift :above 0 :by 5
-               :do (setf nextid (nextid index level))
-               :if (null next-node) ;; copy the next node in the current node
-                 :do (setf next-node (empty-node)) ;; assume 32 long nodes
-               :do (setf next-node (copy-node next-node))
-                   (setf node next-node) ;; set next node as current
-                   (setf arr (node-array node)))
-         (with-slots (array) node
-           (when (= 32 (length array)) ;; except for leafs
-             (setf array (vector))
-             (setf arr (vector)))
-           (setf array
-                 (make-array (1+ (length arr))
-                             :initial-contents (concatenate 'vector arr (list val)))))
-         (make-instance 'tuple :root newroot :shift newshift :count (1+ index)))))))
+(defun conj (tuple val)
+  (cond ((tuple-empty? tuple) (single-tuple val))
+        ;; only this should create a new path
+        ;; otherwise just push to a tail vector
+        ((tuple-next-level? tuple) (conj-share-root tuple val))
+        ;; otherwise just push the new val to the last node
+        ;; FIXME: replace with insert to tail vector
+        (t (tuple-push-val tuple val))))
 
 (defun tuple (&rest elems)
   (reduce 'conj elems :initial-value (empty-tuple)))

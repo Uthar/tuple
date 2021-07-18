@@ -18,7 +18,10 @@
 (defmethod print-object ((object tuple) stream)
   (print-unreadable-object (object stream :type t)
     (loop :for i :below (tuple-count object)
-          :do (format stream "~s " (lookup object i)))))
+          :do (format stream "~s " (lookup object i))
+          :if (= i 30)
+            :do (format stream "... ")
+                (return))))
 
 (defmethod print-object ((object cl-hamt:hash-dict) stream)
   (print-unreadable-object (object stream :type t)
