@@ -44,22 +44,65 @@
 
 (run!)
 
-;; (time (loop for n below 10000000
-;;             for tuple = (empty-tuple) then (conj tuple n)
-;;             finally (return tuple)))
-
-;; (time (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 100000000))))
-
-;; (defvar 10m-tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 10000000))))
-;; (ql:quickload:
+;; (setf 10m-tuple (sequence->tuple (alexandria:iota 10000000)))
+;; (progn (setf 10m-seq (reduce 'fset:with-last (alexandria:iota 10000000) :initial-value (fset:empty-seq))) nil)
 
 ;; (time (dotimes (n 10000000) (insert 10m-tuple n :foo)))
 ;; (time (dotimes (n 10000000) (lookup 10m-tuple n)))
 
-;; (ql:quickload :fset)
-
-;; (progn (defvar 10m-seq (reduce 'fset:with-last `(,(fset:empty-seq) ,@(alexandria:iota 10000000)))) nil)
-
-;; (progn (time (dotimes (n 10000000) (fset:with 10m-seq n :foo))) nil)
-
+;; (time (dotimes (n 10000000) (fset:insert 10m-seq n :foo)))
 ;; (time (dotimes (n 10000000) (fset:lookup 10m-seq n)))
+
+
+;; (defclass lazy-seq (standard-object sequence) ())
+
+;; (defmethod sb-sequence:length ((sequence lazy-seq)) nil)
+;; (defmethod sb-sequence:elt ((sequence lazy-seq) index) nil)
+;; (defmethod (setf sb-sequence:elt) (new-value (sequence lazy-seq) index) nil)
+;; (defmethod sb-sequence:adjust-sequence
+;;     ((sequence lazy-seq) length &key initial-element (initial-contents nil icp))
+;;   nil)
+;; (defmethod sb-sequence:make-sequence-like
+;;     ((sequence lazy-seq) length &key initial-element initial-contents)
+;;   nil)
+
+
+;; (defmethod sb-sequence:length ((sequence tuple)) (tuple-count sequence))
+;; (defmethod sb-sequence:elt ((sequence tuple) index) (lookup sequence index))
+;; (defmethod (setf sb-sequence:elt) (new-value (sequence tuple) index)
+;;   (let ((new (insert sequence index new-value)))
+;;     (with-slots (root) sequence
+;;       (setf root (tuple-root new)))
+;;     new-value))
+;; (defmethod sb-sequence:make-sequence-like
+;;     ((sequence tuple) length &key (initial-element nil iep) (initial-contents nil icp))
+;;   (cond (iep (loop repeat length
+;;                    for tuple = (conj (tuple) initial-element) then (conj tuple initial-element)
+;;                    finally (return tuple)))
+;;         (icp (loop repeat length
+;;                    for element in initial-contents
+;;                    for tuple = (conj (tuple) element) then (conj tuple element)
+;;                    finally (return tuple)))
+;;         (t (loop for n below length
+;;                  for element = (ignore-errors (lookup sequence n))
+;;                  for tuple = (conj (tuple) element) then (conj tuple element)
+;;                  finally (return tuple)))))
+;; (defmethod sb-sequence:adjust-sequence
+;;     ((sequence tuple) length &key (initial-element nil iep) (initial-contents nil icp))
+;;   (apply 'sb-sequence:make-sequence-like
+;;          `(,sequence
+;;            ,length
+;;            ,@(if iep `(:initial-element ,initial-element))
+;;            ,@(if icp `(:initial-contents ,initial-contents)))))
+
+;; (concatenate 'tuple "abc" (list 1 2 3) (vector 4 5 6) (tuple 7 8 9))
+
+;; (sort (tuple 7 8 2 7 4 6 1 0 9 19) '<)
+
+;; (remove-duplicates (sort (tuple 7 8 2 7 4 6 1 0 9 19) '<))
+
+;; (remove-if-not 'oddp (tuple 1 2 3 4 5 6 7 8 9 10))
+
+;; (map 'tuple 'sqrt (vector 1 2 3))
+
+;; (merge 'tuple (vector 1 3 5) (tuple 2 4 6) '<)2

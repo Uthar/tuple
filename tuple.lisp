@@ -10,7 +10,7 @@ A node contains an array of either other nodes or the tuple
 values. Values exist on the tuple leaves, when tuple-shift is 0.
    "))
 
-(defclass tuple ()
+(defclass tuple () ;; (standard-object sequence)
   ((shift
     :initarg :shift
     :reader tuple-shift)
@@ -80,17 +80,20 @@ nodes. (?)
   (let* ((index (tuple-count tuple)) ;; also the length of the new tuple
          (shift (tuple-shift tuple))
          (root (tuple-root tuple))
-         (newroot (make-instance 'node :array (copy-seq (node-array root))))
+         (newroot (copy-node root))
          (newshift shift)
          (nextid nil)
          (node newroot)
          (arr (node-array newroot)))
     (cond
+
       ((zerop index)
        (let ((node (make-instance 'node :array (vector val)))
              (root (empty-node)))
          (setf (aref (node-array root) 0) node)
          (return-from conj (make-instance 'tuple :root root :shift 5 :count 1))))
+
+
       ((= index (expt 2 (+ 5 shift))) ;; only this should create a new path
                                       ;; otherwise just push to a tail vector
        (let ((newroot (empty-node))
@@ -106,16 +109,16 @@ nodes. (?)
          (setf node (aref (node-array node) 0))
          (setf (aref (node-array node) 0) val)
          (make-instance 'tuple :root newroot :shift newshift :count (1+ index))))
+
+
+      ;; FIXME: replace with insert to tail vector
       (t
        (progn
          (loop :for level :downfrom shift :above 0 :by 5
                :do (setf nextid (nextid index level))
                :if (null next-node) ;; copy the next node in the current node
                  :do (setf next-node (empty-node)) ;; assume 32 long nodes
-               :do (setf next-node
-                         (make-instance 'node
-                                        :array
-                                        (copy-seq (node-array next-node))))
+               :do (setf next-node (copy-node next-node))
                    (setf node next-node) ;; set next node as current
                    (setf arr (node-array node)))
          (with-slots (array) node
@@ -128,7 +131,11 @@ nodes. (?)
          (make-instance 'tuple :root newroot :shift newshift :count (1+ index)))))))
 
 (defun tuple (&rest elems)
-  (reduce #'conj elems :initial-value (empty-tuple)))
+  (reduce 'conj elems :initial-value (empty-tuple)))
+
+;; FIXME implement sequence protocol
+(defun sequence->tuple (sequence)
+  (reduce 'conj sequence :initial-value (empty-tuple)))
 
 
 ;;; utility
