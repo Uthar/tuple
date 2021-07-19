@@ -10,9 +10,6 @@ A node contains an array of either other nodes or the tuple
 values. Values exist on the tuple leaves.
    "))
 
-(declaim (ftype (function (tuple) (integer 0 30)) tuple-shift))
-(declaim (ftype (function (tuple) (unsigned-byte 32)) tuple-count))
-
 (defclass tuple () ;; (standard-object sequence)
   ((shift
     :type (integer 0 30)
@@ -39,6 +36,10 @@ descending down the tree of nodes to find the next nodes' index.
 Count is the number of items in the tuple, that is, the number of leaf
 nodes.
    "))
+
+(declaim (ftype (function (tuple) (integer 0 30)) tuple-shift))
+(declaim (ftype (function (tuple) (unsigned-byte 32)) tuple-count))
+
 
 ;; used for node nodes
 (defun empty-node () (make-instance 'node
@@ -119,7 +120,7 @@ nodes.
           :for node := (setf node root next-node (empty-node))
             :then (setf next-node (empty-node))
           :finally
-             (setf (aref (node-array node) 0) (single-node)
+             (setf (aref (node-array node) 0) (single-node) ;; insert tail here ?
                    node (aref (node-array node) 0)
                    (aref (node-array node) 0) val)
              (return (make-instance 'tuple :root root :shift shift :count (1+ index))))))
@@ -132,7 +133,11 @@ nodes.
     (loop :for level :downfrom shift :above 0 :by 5
           :for nextid := (nextid index level)
           ;; ugh
-          :do (setf next-node (if next-node (copy-node next-node) (if (= 5 level) (zero-node) (empty-node)))
+          :do (setf next-node (if next-node ;; originally these are nil
+                                  (copy-node next-node)
+                                  (if (= 5 level)
+                                      (zero-node)
+                                      (empty-node)))
                     node next-node)
           :finally
              (return
