@@ -70,12 +70,7 @@ nodes.
 (defun copy-node (node)
   (make-instance 'node :array (copy-seq (node-array node))))
 
-(declaim
- (inline tuple-should-grow?)
- (ftype (function (tuple) boolean) tuple-should-grow?))
-
 (defun tuple-should-grow? (tuple)
-  (declare (optimize speed))
   (let ((count (tuple-count tuple))
         (shift (tuple-shift tuple)))
     (= count (expt 2 (+ 5 shift)))))
