@@ -7,11 +7,15 @@
   (:documentation
    "
 A node contains an array of either other nodes or the tuple
-values. Values exist on the tuple leaves, when index is shifted by 0.
+values. Values exist on the tuple leaves.
    "))
+
+(declaim (ftype (function (tuple) (integer 0 30)) tuple-shift))
+(declaim (ftype (function (tuple) (unsigned-byte 32)) tuple-count))
 
 (defclass tuple () ;; (standard-object sequence)
   ((shift
+    :type (integer 0 30)
     :initarg :shift
     :reader tuple-shift)
    (root
@@ -22,6 +26,7 @@ values. Values exist on the tuple leaves, when index is shifted by 0.
     :initform (make-array 32 :initial-element nil)
     :reader tuple-tail)
    (count
+    :type (unsigned-byte 32)
     :initarg :count
     :reader tuple-count))
   (:documentation
@@ -32,13 +37,12 @@ Shift is the number of bytes to start shifting the index by from when
 descending down the tree of nodes to find the next nodes' index.
 
 Count is the number of items in the tuple, that is, the number of leaf
-nodes. (?)
+nodes.
    "))
 
 ;; used for node nodes
 (defun empty-node () (make-instance 'node
                                     :array
-                                    ;; FIXME vector-push, fill pointer 0 to avoid calling make-array (faster?)
                                     (make-array 32 :initial-element nil)))
 
 ;; used for value nodes
@@ -57,10 +61,7 @@ nodes. (?)
 
 (declaim
  (inline nextid)
- (ftype
-  (function ((unsigned-byte 32) &optional (integer 0 35))
-            (unsigned-byte 32))
-  nextid))
+ (ftype (function ((unsigned-byte 32) &optional (integer 0 30)) (unsigned-byte 5)) nextid))
 
 (defun nextid (index &optional (shift 0))
   (declare (optimize speed))
@@ -69,8 +70,14 @@ nodes. (?)
 (defun copy-node (node)
   (make-instance 'node :array (copy-seq (node-array node))))
 
-(defun tuple-next-level? (tuple)
-  (with-slots (count shift) tuple
+(declaim
+ (inline tuple-should-grow?)
+ (ftype (function (tuple) boolean) tuple-should-grow?))
+
+(defun tuple-should-grow? (tuple)
+  (declare (optimize speed))
+  (let ((count (tuple-count tuple))
+        (shift (tuple-shift tuple)))
     (= count (expt 2 (+ 5 shift)))))
 
 (defun tuple-empty? (tuple)
@@ -107,7 +114,7 @@ nodes. (?)
     (setf (aref (node-array root) 0) node)
     (make-instance 'tuple :root root :shift 5 :count 1)))
 
-(defun conj-share-root (tuple val)
+(defun tuple-grow-share-root (tuple val)
   (let ((root (empty-node)))
     (setf (aref (node-array root) 0) (tuple-root tuple)) ;; share whole thing on the 'left'
     (loop :with index := (tuple-count tuple)
@@ -145,7 +152,7 @@ nodes. (?)
   (cond ((tuple-empty? tuple) (single-tuple val))
         ;; only this should create a new path
         ;; otherwise just push to a tail vector
-        ((tuple-next-level? tuple) (conj-share-root tuple val))
+        ((tuple-should-grow? tuple) (tuple-grow-share-root tuple val))
         ;; otherwise just push the new val to the last node
         ;; FIXME: replace with insert to tail vector
         (t (tuple-push-val tuple val))))
