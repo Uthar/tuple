@@ -86,8 +86,7 @@ nodes.
         :for arr := (node-array (aref root-array nextid))
           :then (node-array (aref arr nextid))
         ;; leafs are values, not nodes
-        :finally (return
-                   (when arr (aref arr (nextid index))))))
+        :finally (return (aref arr (nextid index)))))
 
 (define-symbol-macro next-node (aref (node-array node) nextid))
 
