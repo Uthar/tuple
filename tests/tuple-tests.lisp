@@ -31,7 +31,7 @@
     (is (equal (lookup tup2 2) "baz"))
     (is (equal (lookup tup2 3) "quux"))))
 
-(test 100k-insert
+(test 10k-insert
   (let* ((tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 10000))))
          (vals (make-array 10000
                            :initial-contents (loop for n below 10000 collect (funcall (gen-string))))))
