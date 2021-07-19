@@ -7,7 +7,7 @@
   (:documentation
    "
 A node contains an array of either other nodes or the tuple
-values. Values exist on the tuple leaves, when tuple-shift is 0.
+values. Values exist on the tuple leaves, when index is shifted by 0.
    "))
 
 (defclass tuple () ;; (standard-object sequence)
@@ -28,28 +28,40 @@ values. Values exist on the tuple leaves, when tuple-shift is 0.
    "
 A tuple is an integer-indexed, immutable collection of items.
 
-Shift is the number of bytes to shift the index by when descending
-down the tree of nodes to find the next nodes' index.
+Shift is the number of bytes to start shifting the index by from when
+descending down the tree of nodes to find the next nodes' index.
 
 Count is the number of items in the tuple, that is, the number of leaf
 nodes. (?)
    "))
 
+;; used for node nodes
 (defun empty-node () (make-instance 'node
                                     :array
+                                    ;; FIXME vector-push, fill pointer 0 to avoid calling make-array (faster?)
                                     (make-array 32 :initial-element nil)))
 
+;; used for value nodes
 (defun single-node () (make-instance 'node
                                     :array
                                     (make-array 1 :initial-element nil)))
+
+(defun zero-node () (make-instance 'node
+                                    :array
+                                    (vector)))
 
 (defun empty-tuple () (make-instance 'tuple
                                      :root (empty-node)
                                      :count 0
                                      :shift 5))
 
-(declaim (inline nextid)
-         (ftype (function (fixnum &optional (unsigned-byte 6)) fixnum) nextid))
+(declaim
+ (inline nextid)
+ (ftype
+  (function ((unsigned-byte 32) &optional (integer 0 35))
+            (unsigned-byte 32))
+  nextid))
+
 (defun nextid (index &optional (shift 0))
   (declare (optimize speed))
   (logand (ash index (- shift)) #b11111))
@@ -69,7 +81,8 @@ nodes. (?)
         :with root-array := (node-array (tuple-root tuple))
         :for level :downfrom shift :above 0 :by 5
         :for nextid := (nextid index level)
-        :for arr := (node-array (aref root-array nextid)) :then (node-array (aref arr nextid))
+        :for arr := (node-array (aref root-array nextid))
+          :then (node-array (aref arr nextid))
         ;; leafs are values, not nodes
         :finally (return
                    (when arr (aref arr (nextid index))))))
@@ -102,7 +115,8 @@ nodes. (?)
           :for level :downfrom shift :above 5 :by 5
           :for nextid := (nextid index level)
           ;; but make a new path to leaf
-          :for node := (setf node root next-node (empty-node)) :then (setf next-node (empty-node))
+          :for node := (setf node root next-node (empty-node))
+            :then (setf next-node (empty-node))
           :finally
              (setf (aref (node-array node) 0) (single-node)
                    node (aref (node-array node) 0)
@@ -116,6 +130,7 @@ nodes. (?)
          (node root))
     (loop :for level :downfrom shift :above 0 :by 5
           :for nextid := (nextid index level)
+          ;; ugh
           :do (setf next-node (if next-node (copy-node next-node) (if (= 5 level) (zero-node) (empty-node)))
                     node next-node)
           :finally
