@@ -126,7 +126,7 @@ nodes.
                  (return tuple)))))
 
 (defun single-tuple (val)
-  (let ((tail (make-array 32 :fill-pointer 0)))
+  (let ((tail (empty-tail)))
     (vector-push val tail)
     (make-instance 'tuple :root (empty-node) :shift 5 :count 1 :tail tail)))
 
@@ -150,11 +150,12 @@ nodes.
           :for node := (setf node root next-node (empty-node))
             :then (setf next-node (empty-node))
           :finally
+             ;; :above 0 and leave only the last setf?
              (setf (aref (node-array node) 0) (empty-node)
                    node (aref (node-array node) 0)
-                   (slot-value node 'array) (copy-seq (tuple-tail tuple))) ;; insert tail here ?
+                   (slot-value node 'array) (copy-seq (tuple-tail tuple)))
              (let ((tail (empty-tail)))
-               (vector-push val tail)
+               (vector-push val tail)                                       ;; use count instead, more readable ?
                (return (make-instance 'tuple :root root :shift shift :count (+ 2 index) :tail tail))))))
 
 (defun tuple-grow-from-tail (tuple val)
@@ -162,7 +163,7 @@ nodes.
          (shift (tuple-shift tuple))
          (root (copy-node (tuple-root tuple)))
          (node root)
-         (tail (make-array 32 :fill-pointer 0)))
+         (tail (empty-tail)))
     (loop :for level :downfrom shift :above 0 :by 5
           :for nextid := (nextid index level)
           :do (setf next-node (if next-node
