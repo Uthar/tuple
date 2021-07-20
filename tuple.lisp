@@ -80,7 +80,7 @@ nodes.
   (declare (optimize speed))
   (logand (ash index (- shift)) #b11111))
 
-(defun tuple-should-grow? (tuple)
+(defun tuple-should-grow-new-root? (tuple)
   (let ((count (tuple-count tuple))
         (shift (tuple-shift tuple)))
     (= count (+ 32 (expt 2 (+ 5 shift))))))
@@ -187,7 +187,7 @@ nodes.
          (single-tuple val))
         ((tuple-space-in-tail? tuple)
          (tuple-push-tail tuple val))
-        ((tuple-should-grow? tuple)
+        ((tuple-should-grow-new-root? tuple)
          (tuple-grow-share-root tuple val))
         (t
          (tuple-grow-from-tail tuple val))))
@@ -203,22 +203,19 @@ nodes.
 ;;; utility
 
 
-(defun map* (fn tuple)
-  (reduce #'conj
-          `(,(empty-tuple)
-            ,@(loop for x below (tuple-count tuple)
-                    collect (funcall fn (lookup tuple x))))))
+(defun tuple-map (fn tuple)
+  (sequence->tuple
+   (loop for x below (tuple-count tuple)
+         collect (funcall fn (lookup tuple x)))))
 
-(defun filter (fn tuple)
-  (reduce #'conj
-          `(,(empty-tuple)
-            ,@(loop for i below (tuple-count tuple)
-                    for x = (lookup tuple i)
-                    if (funcall fn x)
-                    collect x))))
+(defun tuple-filter (fn tuple)
+  (sequence->tuple
+   (loop for i below (tuple-count tuple)
+         for x = (lookup tuple i)
+         if (funcall fn x)
+           collect x)))
 
 ;; is this too slow?
-(defun cons* (x tuple)
-  (reduce #'conj `(,(conj (empty-tuple) x)
-                   ,@(mapcar (lambda (x) (lookup tuple x))
-                             (loop for i below (tuple-count tuple) collect i)))))
+(defun tuple-cons (x tuple)
+  (sequence->tuple
+   (cons x (loop for i below (tuple-count tuple) collect (lookup tuple i)))))
