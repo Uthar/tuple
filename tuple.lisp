@@ -60,6 +60,22 @@ nodes.
                                      :root (empty-node)
                                      :count 0
                                      :shift 5))
+(defun empty-tail ()
+  (make-array 32 :fill-pointer 0 :initial-element nil))
+
+(defun copy-node (node)
+  (make-instance 'node :array (copy-seq (node-array node))))
+
+(defun copy-tuple (tuple)
+  (let ((tail (tuple-tail tuple))
+        (newtail (empty-tail)))
+    (loop for x across tail do (vector-push x newtail))
+    (make-instance 'tuple
+                   :count (tuple-count tuple)
+                   :tail newtail
+                   :root (copy-node (tuple-root tuple))
+                   :shift (tuple-shift tuple))))
+
 
 (declaim
  (inline nextid)
@@ -68,9 +84,6 @@ nodes.
 (defun nextid (index &optional (shift 0))
   (declare (optimize speed))
   (logand (ash index (- shift)) #b11111))
-
-(defun copy-node (node)
-  (make-instance 'node :array (copy-seq (node-array node))))
 
 (defun tuple-should-grow? (tuple)
   (let ((count (tuple-count tuple))
@@ -125,24 +138,11 @@ nodes.
 (defun tuple-space-in-tail? (tuple)
   (< (fill-pointer (tuple-tail tuple)) 32))
 
-(defun copy-tuple (tuple)
-  (let ((tail (tuple-tail tuple))
-        (newtail (empty-tail)))
-    (loop for x across tail do (vector-push x newtail))
-    (make-instance 'tuple
-                   :count (tuple-count tuple)
-                   :tail newtail
-                   :root (copy-node (tuple-root tuple))
-                   :shift (tuple-shift tuple))))
-
 (defun tuple-push-tail (tuple val)
   (let ((tuple (copy-tuple tuple)))
     (vector-push val (tuple-tail tuple))
     (incf (slot-value tuple 'count))
     tuple))
-
-(defun empty-tail ()
-  (make-array 32 :fill-pointer 0 :initial-element nil))
 
 (defun tuple-grow-share-root (tuple val)
   (let ((root (empty-node)))
