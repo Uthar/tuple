@@ -47,11 +47,6 @@ nodes.
                                     :array
                                     (make-array 32 :initial-element nil)))
 
-;; used for value nodes
-(defun single-node () (make-instance 'node
-                                    :array
-                                    (make-array 1 :initial-element nil)))
-
 (defun zero-node () (make-instance 'node
                                     :array
                                     (vector)))
@@ -187,7 +182,7 @@ nodes.
                               :tail tail)))))
 
 (defun conj (tuple val)
-  (cond ((tuple-empty? tuple)
+  (cond ((tuple-empty? tuple) ;;needed?
          (single-tuple val))
         ((tuple-space-in-tail? tuple)
          (tuple-push-tail tuple val))
