@@ -162,28 +162,6 @@ nodes.
                (vector-push val tail)
                (return (make-instance 'tuple :root root :shift shift :count (+ 2 index) :tail tail))))))
 
-(defun tuple-push-val (tuple val)
-  (let* ((index (tuple-count tuple)) ;; also the length of the new tuple
-         (shift (tuple-shift tuple))
-         (root (copy-node (tuple-root tuple)))
-         (node root))
-    (loop :for level :downfrom shift :above 0 :by 5
-          :for nextid := (nextid index level)
-          ;; ugh
-          :do (setf next-node (if next-node ;; originally these are nil
-                                  (copy-node next-node)
-                                  (if (= 5 level)
-                                      (zero-node)
-                                      (empty-node)))
-                    node next-node)
-          :finally
-             (return
-               (with-slots (array) node
-                 (setf array
-                       (make-array (1+ (length array))
-                                   :initial-contents (concatenate 'vector array (vector val))))
-                 (make-instance 'tuple :root root :shift shift :count (1+ index)))))))
-
 (defun tuple-grow-from-tail (tuple val)
   (let* ((index (1- (tuple-count tuple)))
          (shift (tuple-shift tuple))
