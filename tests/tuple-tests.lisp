@@ -7,39 +7,39 @@
 
 (test empty-tuple
   (let* ((tuple (empty-tuple)))
-    (is (eq (tuple-count tuple) 0))))
+    (is (eq (tuple-size tuple) 0))))
 
 (test 1-tuple
-  (let* ((tuple (conj (empty-tuple) "foo")))
-    (is (eq (tuple-count tuple) 1))
-    (is (equal (lookup tuple 0) "foo"))))
+  (let* ((tuple (tuple "foo")))
+    (is (eq (tuple-size tuple) 1))
+    (is (equal (tuple-lookup tuple 0) "foo"))))
 
 (test 100k-tuple
-  (let* ((tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 100000)))))
-    (is (eq (tuple-count tuple) 100000))
-    (is (loop for n below 100000 always (eq (lookup tuple n) n)))))
+  (let* ((tuple (sequence->tuple (loop for x below 100000 collect x))))
+    (is (eq (tuple-size tuple) 100000))
+    (is (loop for n below 100000 always (eq (tuple-lookup tuple n) n)))))
 
 (test immutable
-  (let* ((tup1 (reduce 'conj '("foo" "bar") :initial-value (empty-tuple)))
-         (tup2 (reduce 'conj '("baz" "quux") :initial-value tup1)))
-    (insert tup2 0 :x)
-    (is (equal (lookup tup1 0) "foo"))
-    (is (equal (lookup tup2 0) "foo"))
-    (insert tup2 1 :y)
-    (is (equal (lookup tup1 1) "bar"))
-    (is (equal (lookup tup2 1) "bar"))
-    (is (equal (lookup tup2 2) "baz"))
-    (is (equal (lookup tup2 3) "quux"))))
+  (let* ((tup1 (tuple "foo" "bar"))
+         (tup2 (tuple-conj tup1 "baz")))
+    (tuple-insert tup2 0 :x)
+    (is (equal (tuple-lookup tup1 0) "foo"))
+    (is (equal (tuple-lookup tup2 0) "foo"))
+    (tuple-insert tup2 1 :y)
+    (is (equal (tuple-lookup tup1 1) "bar"))
+    (is (equal (tuple-lookup tup2 1) "bar"))
+    (is (equal (tuple-lookup tup2 2) "baz"))))
 
 (test 10k-insert
-  (let* ((tuple (reduce 'conj `(,(empty-tuple) ,@(alexandria:iota 10000))))
+  (let* ((tuple (sequence->tuple (loop for x below 10000 collect x)))
          (vals (make-array 10000
-                           :initial-contents (loop for n below 10000 collect (funcall (gen-string))))))
-    (is (eq (tuple-count tuple) 10000))
+                           :initial-contents
+                           (loop for n below 10000 collect (funcall (gen-string))))))
+    (is (eq (tuple-size tuple) 10000))
     (is (loop for n below 10000
-              for tup = (insert tuple n (aref vals n)) then (insert tup n (aref vals n))
-              always (loop for x below n always (equal (lookup tup x) (aref vals x)))
-              always (loop for x from (1+ n) below 10000 always (equal (lookup tup x) x))))))
+              for tup = (tuple-insert tuple n (aref vals n)) then (tuple-insert tup n (aref vals n))
+              always (loop for x below n always (equal (tuple-lookup tup x) (aref vals x)))
+              always (loop for x from (1+ n) below 10000 always (equal (tuple-lookup tup x) x))))))
 
 
 (run!)
