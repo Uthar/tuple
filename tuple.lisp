@@ -1,35 +1,14 @@
 (in-package :tuple)
 
-(defclass node ()
-  ((array
-    :initarg :array
-    :reader node-array))
-  (:documentation
-   "
+(defstruct (node (:copier nil))
+  "
 A node contains an array of either other nodes or values, values being
 the leaves of such a tree.
-   "))
+  "
+  (array nil :type (simple-vector 32)))
 
-(declaim (ftype (function (node) (simple-vector 32)) node-array))
-
-(defclass tuple () ;; (standard-object sequence)
-  ((shift
-    :type (integer 0 30)
-    :initarg :shift
-    :reader tuple-shift)
-   (root
-    :initarg :root
-    :reader tuple-root)
-   (tail
-    :type (vector * 32)
-    :initarg :tail
-    :reader tuple-tail)
-   (count
-    :type (unsigned-byte 32)
-    :initarg :count
-    :reader tuple-count))
-  (:documentation
-   "
+(defstruct (tuple (:copier nil))
+  "
 A tuple is an integer-indexed, immutable collection of any kind of
 object.
 
@@ -46,30 +25,29 @@ new node when it's full.
 
 Count is the number of items in the tuple, that is, the number of leaf
 nodes plus the fill-pointer of the tail.
-   "))
-
-(declaim (ftype (function (tuple) (integer 0 30)) tuple-shift))
-(declaim (ftype (function (tuple) (unsigned-byte 32)) tuple-count))
-(declaim (ftype (function (tuple) (vector * 32)) tuple-tail))
-
+  "
+  (shift  5 :type (integer 0 30))
+  (root nil :type node)
+  (tail nil :type (vector * 32))
+  (count  0 :type (unsigned-byte 32)))
 
 (defun empty-node ()
-  (make-instance 'node
-                 :array
-                 (make-array 32 :initial-element nil)))
+  (make-node
+   :array
+   (make-array 32 :initial-element nil)))
 
 (defun empty-tail ()
   (make-array 32 :fill-pointer 0 :initial-element nil))
 
 (defun empty-tuple ()
-  (make-instance 'tuple
-                 :root (empty-node)
-                 :tail (empty-tail)
-                 :count 0
-                 :shift 5))
+  (make-tuple
+   :root (empty-node)
+   :tail (empty-tail)
+   :count 0
+   :shift 5))
 
 (defun copy-node (node)
-  (make-instance 'node :array (copy-seq (node-array node))))
+  (make-node :array (copy-seq (node-array node))))
 
 (defun copy-tail (tail)
   (loop :with new := (empty-tail)
@@ -77,12 +55,11 @@ nodes plus the fill-pointer of the tail.
         :finally (return new)))
 
 (defun copy-tuple (tuple)
-  (make-instance 'tuple
-                 :count (tuple-count tuple)
-                 :tail (copy-tail (tuple-tail tuple))
-                 :root (copy-node (tuple-root tuple))
-                 :shift (tuple-shift tuple)))
-
+  (make-tuple
+   :count (tuple-count tuple)
+   :tail (copy-tail (tuple-tail tuple))
+   :root (copy-node (tuple-root tuple))
+   :shift (tuple-shift tuple)))
 
 (declaim
  (inline nextid)
@@ -133,7 +110,7 @@ nodes plus the fill-pointer of the tail.
             :finally
                (setf (aref (node-array node) (nextid index)) val)
                (let ((tuple (copy-tuple tuple)))
-                 (setf (slot-value tuple 'root) root)
+                 (setf (tuple-root tuple) root)
                  (return tuple)))))
 
 (defun tuple-space-in-tail? (tuple)
@@ -142,7 +119,7 @@ nodes plus the fill-pointer of the tail.
 (defun tuple-push-tail (tuple val)
   (let ((tuple (copy-tuple tuple)))
     (vector-push val (tuple-tail tuple))
-    (incf (slot-value tuple 'count))
+    (incf (tuple-count tuple))
     tuple))
 
 (defun tuple-grow-share-root (tuple val)
@@ -161,14 +138,14 @@ nodes plus the fill-pointer of the tail.
             :then (setf next-node (empty-node))
 
           :finally
-             (setf (slot-value node 'array) (copy-seq (tuple-tail tuple)))
+             (setf (node-array node) (copy-seq (tuple-tail tuple)))
              (let ((tail (empty-tail)))
                (vector-push val tail)
-               (return (make-instance 'tuple
-                                      :root root
-                                      :shift shift
-                                      :count (1+ (tuple-count tuple))
-                                      :tail tail))))))
+               (return (make-tuple
+                        :root root
+                        :shift shift
+                        :count (1+ (tuple-count tuple))
+                        :tail tail))))))
 
 (defun tuple-grow-from-tail (tuple val)
   (loop :with index := (1- (tuple-count tuple))
@@ -185,13 +162,13 @@ nodes plus the fill-pointer of the tail.
                   node next-node)
         :finally
            (vector-push val tail)
-           (setf (slot-value node 'array) (copy-seq (tuple-tail tuple)))
+           (setf (node-array node) (copy-seq (tuple-tail tuple)))
            (return
-             (make-instance 'tuple
-                            :root root
-                            :shift shift
-                            :count (1+ (tuple-count tuple))
-                            :tail tail))))
+             (make-tuple
+              :root root
+              :shift shift
+              :count (1+ (tuple-count tuple))
+              :tail tail))))
 
 (defun tuple-conj (tuple val)
   (cond ((tuple-space-in-tail? tuple)
