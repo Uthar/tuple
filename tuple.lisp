@@ -1,14 +1,18 @@
 (in-package :tuple)
 
+(declaim (optimize speed))
+
 (defclass node ()
   ((array
     :initarg :array
     :reader node-array))
   (:documentation
    "
-A node contains an array of either other nodes or tuple values, values
-being the leaves of such a tree.
+A node contains an array of either other nodes or values, values being
+the leaves of such a tree.
    "))
+
+(declaim (ftype (function (node) (simple-vector 32)) node-shift))
 
 (defclass tuple () ;; (standard-object sequence)
   ((shift
@@ -28,11 +32,12 @@ being the leaves of such a tree.
     :reader tuple-count))
   (:documentation
    "
-A tuple is an integer-indexed, immutable collection of any object.
+A tuple is an integer-indexed, immutable collection of any kind of
+object.
 
 Shift is the number of bytes to start shifting the 32-bit index by
 from when descending down the tree of nodes to find the next nodes'
-index.
+index in a nodes' array.
 
 Tail is a vector containing the last 32 elements of the tuple. Insert,
 lookup and conj is faster with it because there's no need to traverse
@@ -99,6 +104,7 @@ nodes plus the fill-pointer of the tail.
 
 (defun tuple-index-in-tail? (tuple index)
   (let ((count (tuple-count tuple)))
+    (declare (type (unsigned-byte 32) index))
     (or (< count 32)
         (>= index (- count (fill-pointer (tuple-tail tuple)))))))
 
@@ -134,7 +140,7 @@ nodes plus the fill-pointer of the tail.
                  (return tuple)))))
 
 (defun tuple-space-in-tail? (tuple)
-  (< (fill-pointer (tuple-tail tuple)) 32)) ;; more idiomatic way?
+  (< (fill-pointer (tuple-tail tuple)) 32))
 
 (defun tuple-push-tail (tuple val)
   (let ((tuple (copy-tuple tuple)))
@@ -239,9 +245,6 @@ nodes plus the fill-pointer of the tail.
                          'tuple-eq
                          'equal)
                      x y))))
-
-
-
 
 ;; is this too slow?
 (defun tuple-cons (x tuple)
