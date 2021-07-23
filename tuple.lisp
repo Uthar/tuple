@@ -109,9 +109,10 @@ nodes plus the fill-pointer of the tail.
               :then (setf next-node (copy-node next-node))
             :finally
                (setf (aref (node-array node) (nextid index)) val)
-               (let ((tuple (copy-tuple tuple)))
-                 (setf (tuple-root tuple) root)
-                 (return tuple)))))
+               (return (make-tuple :shift shift
+                                   :root root
+                                   :tail (tuple-tail tuple)
+                                   :count (tuple-count tuple))))))
 
 (defun tuple-space-in-tail? (tuple)
   (< (fill-pointer (tuple-tail tuple)) 32))
