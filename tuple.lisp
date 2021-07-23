@@ -1,7 +1,5 @@
 (in-package :tuple)
 
-(declaim (optimize speed))
-
 (defclass node ()
   ((array
     :initarg :array
@@ -12,7 +10,7 @@ A node contains an array of either other nodes or values, values being
 the leaves of such a tree.
    "))
 
-(declaim (ftype (function (node) (simple-vector 32)) node-shift))
+(declaim (ftype (function (node) (simple-vector 32)) node-array))
 
 (defclass tuple () ;; (standard-object sequence)
   ((shift
@@ -104,7 +102,6 @@ nodes plus the fill-pointer of the tail.
 
 (defun tuple-index-in-tail? (tuple index)
   (let ((count (tuple-count tuple)))
-    (declare (type (unsigned-byte 32) index))
     (or (< count 32)
         (>= index (- count (fill-pointer (tuple-tail tuple)))))))
 
