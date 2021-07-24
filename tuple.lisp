@@ -2,8 +2,8 @@
 
 (defstruct (node (:copier nil))
   "
-A node contains an array of either other nodes or values, values being
-the leaves of such a tree.
+A node contains an array of either other nodes or values, which forms
+a tree - values being the leaves of it.
   "
   (array nil :type (simple-vector 32)))
 
@@ -14,21 +14,22 @@ object.
 
 Shift is the number of bytes to start shifting the 32-bit index by
 from when descending down the tree of nodes to find the next nodes'
-index in a nodes' array.
+index in the 'current' nodes' array.
 
 Tail is a vector containing the last 32 elements of the tuple. Insert,
 lookup and conj is faster with it because there's no need to traverse
 the tree for values in the tail.
 
 Nodes are always (simple-vector 32) because the tail gets copied to a
-new node when it's full.
+new node only when it's full. Otherwise new values are vector-pushed
+to the tail.
 
 Count is the number of items in the tuple, that is, the number of leaf
 nodes plus the fill-pointer of the tail.
   "
   (shift  5 :type (integer 0 30))
   (root nil :type node)
-  (tail nil :type (vector * 32))
+  (tail nil :type (vector t 32))
   (count  0 :type (unsigned-byte 32)))
 
 (defun empty-node ()
@@ -74,12 +75,13 @@ nodes plus the fill-pointer of the tail.
         (shift (tuple-shift tuple)))
     (= count (+ 32 (expt 2 (+ 5 shift))))))
 
+;; unused
 (defun tuple-empty? (tuple)
   (zerop (tuple-count tuple)))
 
 (defun tuple-index-in-tail? (tuple index)
   (let ((count (tuple-count tuple)))
-    (or (< count 32)
+    (or (< count 32) ;; index?
         (>= index (- count (fill-pointer (tuple-tail tuple)))))))
 
 (defun tuple-lookup (tuple index)
@@ -95,6 +97,7 @@ nodes plus the fill-pointer of the tail.
 
 (define-symbol-macro next-node (aref (node-array node) nextid))
 
+;; still 2.5x slower than clojure... but why?
 (defun tuple-insert (tuple index val)
   (if (tuple-index-in-tail? tuple index)
       (let ((tuple (copy-tuple tuple)))
@@ -123,12 +126,14 @@ nodes plus the fill-pointer of the tail.
     (incf (tuple-count tuple))
     tuple))
 
+;; do something with the similiarities between the next two
+
 (defun tuple-grow-share-root (tuple val)
   (let ((root (empty-node)))
     ;; share whole thing on the 'left'
     (setf (aref (node-array root) 0) (tuple-root tuple))
 
-    ;; 1- cuz tail is shared, val is put in new tail
+    ;; 1- cuz tail is shared there, val is put in new tail
     (loop :with index := (1- (tuple-count tuple))
           :with shift := (+ 5 (tuple-shift tuple))
           :for level :downfrom shift :above 0 :by 5
@@ -188,6 +193,8 @@ nodes plus the fill-pointer of the tail.
 
 
 ;;; utility
+
+;; these are probably slow as fuck
 
 (defun tuple-size (tuple)
   (tuple-count tuple))
