@@ -178,6 +178,8 @@ nodes plus the fill-pointer of the tail.
                   node next-node)
         :finally
            (vector-push val tail)
+           ;; could have been the same vector, but has to be a
+           ;; simple-vector so copy-seq does just that
            (setf (node-array node) (copy-seq (tuple-tail tuple)))
            (return
              (make-tuple
