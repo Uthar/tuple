@@ -1,4 +1,5 @@
 (defsystem :tuple
+  :description "Immutable, persistent tuple (vector) data structure"
   :pathname "src"
   :serial t
   :components ((:file "package")
