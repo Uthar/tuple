@@ -13,8 +13,8 @@ A tuple is an integer-indexed, immutable collection of any kind of
 object.
 
 Shift is the number of bytes to start shifting the 32-bit index by
-from when descending down the tree of nodes to find the next nodes'
-index in the 'current' nodes' array.
+from when descending down the tree of nodes. To find the next nodes'
+index, take the last 5 bits of the shifted number.
 
 Tail is a vector containing the last 32 elements of the tuple. Insert,
 lookup and conj is faster with it because there's no need to traverse
