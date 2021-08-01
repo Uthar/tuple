@@ -110,6 +110,9 @@ nodes plus the fill-pointer of the tail.
 (defun tuple-insert (tuple index val)
   (declare (optimize (speed 3) (space 0) (debug 0) (safety 0) (compilation-speed 0)))
   (if (tuple-index-in-tail? tuple index)
+      ;; FIXME
+      ;; only need to  copy the tail here
+      ;; i.e. dont need to copy root !
       (let ((tuple (copy-tuple tuple)))
         (setf (aref (tuple-tail tuple) (nextid index)) val)
         tuple)
@@ -131,6 +134,9 @@ nodes plus the fill-pointer of the tail.
   (< (fill-pointer (tuple-tail tuple)) 32))
 
 (defun tuple-push-tail (tuple val)
+  ;; FIXME
+  ;; only need to  copy the tail here
+  ;; i.e. dont need to copy root !
   (let ((tuple (copy-tuple tuple)))
     (vector-push val (tuple-tail tuple))
     (incf (tuple-count tuple))
@@ -178,6 +184,7 @@ nodes plus the fill-pointer of the tail.
                   node next-node)
         :finally
            (vector-push val tail)
+           ;; FIXME could be faster? try changing node-array to (vector t 32)
            ;; could have been the same vector, but has to be a
            ;; simple-vector so copy-seq does just that
            (setf (node-array node) (copy-seq (tuple-tail tuple)))
@@ -230,6 +237,7 @@ nodes plus the fill-pointer of the tail.
 (defun tuple-reduce (fn tuple)
   (reduce fn (tuple->list tuple)))
 
+;; NOTE: equalp works too
 (defun tuple-eq (tuple1 tuple2)
   (and (= (tuple-size tuple1) (tuple-size tuple2))
        (loop for x in (tuple->list tuple1)
