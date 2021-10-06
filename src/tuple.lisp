@@ -1,3 +1,5 @@
+;;; An immutable, persistent vector data structure, not unlike Clojure's.
+
 (in-package :tuple)
 
 (defstruct (node (:copier nil))
@@ -91,6 +93,7 @@ nodes plus the fill-pointer of the tail.
     (or (< count 32) ;; index?
         (>= index (- count (fill-pointer (tuple-tail tuple)))))))
 
+;; aref->svref ?
 (defun tuple-lookup (tuple index)
   (if (tuple-index-in-tail? tuple index)
       (aref (tuple-tail tuple) (nextid index))
@@ -110,12 +113,20 @@ nodes plus the fill-pointer of the tail.
 (defun tuple-insert (tuple index val)
   (declare (optimize (speed 3) (space 0) (debug 0) (safety 0) (compilation-speed 0)))
   (if (tuple-index-in-tail? tuple index)
-      ;; FIXME
-      ;; only need to  copy the tail here
-      ;; i.e. dont need to copy root !
-      (let ((tuple (copy-tuple tuple)))
-        (setf (aref (tuple-tail tuple) (nextid index)) val)
-        tuple)
+      ;; Do I need to copy the tail?
+      ;; I guess i need a shallow copy, but what is the efficient way to do that?
+      ;;
+      ;; 1. I need a new tail, whole new allocated array
+      ;; 2. I want old objects in there
+      ;; 3. I want val inserted into the new allocated array
+      (let ((tail (copy-tail (tuple-tail tuple))))
+        (setf (aref tail (nextid index)) val)
+        ;; Can share everything else
+        (make-tuple
+         :root (tuple-root tuple)
+         :shift (tuple-shift tuple)
+         :count (tuple-count tuple)
+         :tail tail))
       (loop :with root := (copy-node (tuple-root tuple))
             :with shift := (tuple-shift tuple)
             :for level :downfrom shift :above 0 :by 5
@@ -134,18 +145,18 @@ nodes plus the fill-pointer of the tail.
   (< (fill-pointer (tuple-tail tuple)) 32))
 
 (defun tuple-push-tail (tuple val)
-  ;; FIXME
-  ;; only need to  copy the tail here
-  ;; i.e. dont need to copy root !
-  (let ((tuple (copy-tuple tuple)))
-    (vector-push val (tuple-tail tuple))
-    (incf (tuple-count tuple))
-    tuple))
+  (let ((tail (copy-tail (tuple-tail tuple))))
+    (vector-push val tail)
+    (make-tuple :shift (tuple-shift tuple)
+                :count (1+ (tuple-count tuple))
+                :root (tuple-root tuple)
+                :tail tail)))
 
 ;; do something with the similiarities between the next two
 
 (defun tuple-grow-share-root (tuple val)
   (let ((root (empty-node)))
+
     ;; share whole thing on the 'left'
     (setf (aref (node-array root) 0) (tuple-root tuple))
 
@@ -170,9 +181,13 @@ nodes plus the fill-pointer of the tail.
                         :tail tail))))))
 
 (defun tuple-grow-from-tail (tuple val)
+  "Incorporate current tail into node tree, push val to a new tail"
   (loop :with index := (1- (tuple-count tuple))
         :with shift := (tuple-shift tuple)
+
+        ;; Why copy the root here?
         :with root := (copy-node (tuple-root tuple))
+
         :with tail := (empty-tail)
         :with node := root
         :for level :downfrom shift :above 0 :by 5
