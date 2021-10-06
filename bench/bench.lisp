@@ -8,6 +8,8 @@
      (time ,@body)
      (sb-ext:gc :full t)))
 
+;; (single core)
+
 ;; as fast as clojure, which is unexpected
 ;; 1kkk random conj
 (bench
