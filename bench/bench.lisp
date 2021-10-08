@@ -1,4 +1,4 @@
-(use-package :tuple)
+(in-package :tuple)
 
 (defun range* (n)
   (loop for x below n collect (random n)))
@@ -6,11 +6,7 @@
 (defmacro bench (&body body)
   `(progn
      (time ,@body)
-
-     ;; FIXME trivial-garbage or something
-     (sb-ext:gc :full t)
-
-     ))
+     (trivial-garbage:gc :full t)))
 
 ;; (single core)
 
