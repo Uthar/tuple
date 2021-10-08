@@ -60,6 +60,7 @@ nodes plus the fill-pointer of the tail.
         :for x :across tail :do (vector-push x new)
         :finally (return new)))
 
+;; unused
 (defun copy-tuple (tuple)
   (make-tuple
    :count (tuple-count tuple)
@@ -154,7 +155,9 @@ nodes plus the fill-pointer of the tail.
 
 ;; do something with the similiarities between the next two
 
+;; FIXME could reuse tuple-grow-from-tail
 (defun tuple-grow-share-root (tuple val)
+  "Incorporate current tail into node tree, push val to a new tail, increasing tree depth"
   (let ((root (empty-node)))
 
     ;; share whole thing on the 'left'
@@ -162,7 +165,10 @@ nodes plus the fill-pointer of the tail.
 
     ;; 1- cuz tail is shared there, val is put in new tail
     (loop :with index := (1- (tuple-count tuple))
+
+          ;; increase tree depth
           :with shift := (+ 5 (tuple-shift tuple))
+
           :for level :downfrom shift :above 0 :by 5
           :for nextid := (nextid index level)
 
@@ -185,7 +191,7 @@ nodes plus the fill-pointer of the tail.
   (loop :with index := (1- (tuple-count tuple))
         :with shift := (tuple-shift tuple)
 
-        ;; Why copy the root here?
+        ;; Copy root, because we're making a new path to leaf
         :with root := (copy-node (tuple-root tuple))
 
         :with tail := (empty-tail)
@@ -252,7 +258,7 @@ nodes plus the fill-pointer of the tail.
 (defun tuple-reduce (fn tuple)
   (reduce fn (tuple->list tuple)))
 
-;; NOTE: equalp works too
+;; NOTE: equalp works too, since everything is a struct
 (defun tuple-eq (tuple1 tuple2)
   (and (= (tuple-size tuple1) (tuple-size tuple2))
        (loop for x in (tuple->list tuple1)
