@@ -6,7 +6,11 @@
 (defmacro bench (&body body)
   `(progn
      (time ,@body)
-     (sb-ext:gc :full t)))
+
+     ;; FIXME trivial-garbage or something
+     (sb-ext:gc :full t)
+
+     ))
 
 ;; (single core)
 
