@@ -13,3 +13,9 @@
   :components ((:file "package")
                (:file "tuple-test"))
   :perform (test-op (o c) (symbol-call :5am :run! :tuple)))
+
+(defsystem :tuple/bench
+  :depends-on ("tuple" "trivial-garbage")
+  :pathname "bench"
+  :serial t
+  :components ((:file "bench")))
