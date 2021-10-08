@@ -60,14 +60,6 @@ nodes plus the fill-pointer of the tail.
         :for x :across tail :do (vector-push x new)
         :finally (return new)))
 
-;; unused
-(defun copy-tuple (tuple)
-  (make-tuple
-   :count (tuple-count tuple)
-   :tail (copy-tail (tuple-tail tuple))
-   :root (copy-node (tuple-root tuple))
-   :shift (tuple-shift tuple)))
-
 (declaim
  (inline nextid)
  (ftype (function ((unsigned-byte 32) &optional (integer 0 30)) (unsigned-byte 5)) nextid))
@@ -81,10 +73,6 @@ nodes plus the fill-pointer of the tail.
         (shift (tuple-shift tuple)))
     (= count (+ 32 (expt 2 (+ 5 shift))))))
 
-;; unused
-(defun tuple-empty? (tuple)
-  (zerop (tuple-count tuple)))
-
 (declaim (inline tuple-index-in-tail?)
          (ftype (function (tuple (unsigned-byte 32)) boolean) tuple-index-in-tail?))
 
@@ -95,7 +83,7 @@ nodes plus the fill-pointer of the tail.
         (>= index (- count (fill-pointer (tuple-tail tuple)))))))
 
 ;; aref->svref ?
-(defun tuple-lookup (tuple index)
+(defmethod lookup ((tuple tuple) index)
   (if (tuple-index-in-tail? tuple index)
       (aref (tuple-tail tuple) (nextid index))
       (loop :with shift := (tuple-shift tuple)
@@ -108,10 +96,10 @@ nodes plus the fill-pointer of the tail.
 
 (define-symbol-macro next-node (aref (node-array node) nextid))
 
-(declaim (ftype (function (tuple (unsigned-byte 32) t) tuple) tuple-insert))
+(declaim (ftype (function (tuple (unsigned-byte 32) t) tuple) insert))
 
 ;; still 2.5x slower than clojure... but why?
-(defun tuple-insert (tuple index val)
+(defmethod insert ((tuple tuple) index val)
   (declare (optimize (speed 3) (space 0) (debug 0) (safety 0) (compilation-speed 0)))
   (if (tuple-index-in-tail? tuple index)
       ;; Do I need to copy the tail?
@@ -216,7 +204,7 @@ nodes plus the fill-pointer of the tail.
               :count (1+ (tuple-count tuple))
               :tail tail))))
 
-(defun tuple-conj (tuple val)
+(defmethod conj ((tuple tuple) val)
   (cond ((tuple-space-in-tail? tuple)
          (tuple-push-tail tuple val))
         ((tuple-should-grow-new-root? tuple)
@@ -224,50 +212,118 @@ nodes plus the fill-pointer of the tail.
         (t
          (tuple-grow-from-tail tuple val))))
 
+(defmethod count ((tuple tuple))
+  (tuple-count tuple))
+
+(defstruct slice
+  "
+A narrowed view on a tuple, for efficient subvec.
+Should support all the operations like a normal tuple
+  "
+
+  ;; The original tuple
+  (tuple (empty-tuple) :type tuple)
+
+  ;; Where the view on the original tuple begins
+  (start 0 :type (unsigned-byte 32))
+
+  ;; Where it ends
+  (end 0 :type (unsigned-byte 32)))
+
+(defmethod slice ((tuple tuple) start &optional (end (count tuple)))
+  (make-slice :start start :end end :tuple tuple))
+
+;; conj on slice is increase end and insert there to the backing tuple
+;; if reached end of backing tuple, conj on it instead
+(defmethod conj ((tuple slice) val)
+  (let ((end (slice-end tuple))
+        (backing-tuple (slice-tuple tuple)))
+    (make-slice :start (slice-start tuple)
+                :end (1+ end)
+                :tuple
+                (if (= end (tuple-count backing-tuple))
+                    (conj   backing-tuple val)
+                    (insert backing-tuple end val)))))
+
+;; insert on slice is just insert on the backing tuple with index+start
+(defmethod insert ((tuple slice) index val)
+  (let ((start (slice-start tuple)))
+    (make-slice :start start
+                :end (slice-end tuple)
+                :tuple (insert (slice-tuple tuple) (+ index start) val))))
+
+(defmethod pop ((tuple tuple))
+  (slice tuple 0 (1- (count tuple))))
+
+(defmethod pop ((tuple slice))
+  (slice tuple 0 (1- (count tuple))))
+
+;; subvec on slice is just make a slice with different start and end
+(defmethod slice ((tuple slice) start &optional (end (count tuple)))
+  (make-slice :start (+ start (slice-start tuple))
+              :end (+ end (slice-start tuple))
+              :tuple (slice-tuple tuple)))
+
+;; count on slice is (- end start)
+(defmethod count ((tuple slice))
+  (- (slice-end tuple) (slice-start tuple)))
+
+;; lookup on slice is lookup on backing tuple with index+start
+(defmethod lookup ((tuple slice) index)
+  (lookup (slice-tuple tuple) (+ index (slice-start tuple))))
+
+(defmethod peek ((tuple tuple))
+  (lookup tuple (1- (count tuple))))
+
+(defmethod peek ((tuple slice))
+  (lookup tuple (1- (count tuple))))
+
 (defun tuple (&rest elems)
-  (reduce 'tuple-conj elems :initial-value (empty-tuple)))
+  "Create a tuple containing arbitrary elems"
+  (reduce 'conj elems :initial-value (empty-tuple)))
 
 ;; FIXME implement sequence protocol
 (defun sequence->tuple (sequence)
-  (reduce 'tuple-conj sequence :initial-value (empty-tuple)))
+  (reduce 'conj sequence :initial-value (empty-tuple)))
 
 
 ;;; utility
 
 ;; these are probably slow as fuck
 
-(defun tuple-size (tuple)
-  (tuple-count tuple))
-
 (defun tuple-map (fn tuple)
   (sequence->tuple
-   (loop for x below (tuple-count tuple)
-         collect (funcall fn (tuple-lookup tuple x)))))
+   (loop for x below (count tuple)
+         collect (funcall fn (lookup tuple x)))))
 
 (defun tuple-filter (fn tuple)
   (sequence->tuple
-   (loop for i below (tuple-count tuple)
-         for x = (tuple-lookup tuple i)
+   (loop for i below (count tuple)
+         for x = (lookup tuple i)
          if (funcall fn x)
            collect x)))
 
-(defun tuple->list (tuple)
-  (loop for x below (tuple-size tuple)
-        collect (tuple-lookup tuple x)))
+(defmethod tuple->list ((tuple tuple))
+  (loop for x below (count tuple)
+        collect (lookup tuple x)))
+
+(defmethod tuple->list ((tuple slice))
+  (loop for x below (count tuple)
+        collect (lookup tuple x)))
 
 (defun tuple-reduce (fn tuple)
   (reduce fn (tuple->list tuple)))
 
-;; NOTE: equalp works too, since everything is a struct
-(defun tuple-eq (tuple1 tuple2)
-  (and (= (tuple-size tuple1) (tuple-size tuple2))
-       (loop for x in (tuple->list tuple1)
-             for y in (tuple->list tuple2)
-             always (funcall
-                     (if (typep x 'tuple)
-                         'tuple-eq
-                         'equal)
-                     x y))))
+(defun equal (tuple1 tuple2)
+  (and (= (count tuple1) (count tuple2))
+       (loop for x below (count tuple1)
+             for y below (count tuple2)
+             always (let ((val (lookup tuple1 x)))
+                      (funcall
+                       (if (typep val '(or tuple slice))
+                           'equal
+                           'cl:equal)
+                       val (lookup tuple2 y))))))
 
 ;; is this too slow?
 (defun tuple-cons (x tuple)
@@ -277,7 +333,15 @@ nodes plus the fill-pointer of the tail.
 (defmethod print-object ((object tuple) stream)
   (print-unreadable-object (object stream :type t)
     (loop :for i :below (tuple-count object)
-          :do (format stream "~s " (tuple-lookup object i))
+          :do (format stream "~s " (lookup object i))
+          :if (= i 30)
+            :do (format stream "... ")
+                (return))))
+
+(defmethod print-object ((object slice) stream)
+  (print-unreadable-object (object stream :type t)
+    (loop :for i :below (count object)
+          :do (format stream "~s " (lookup object i))
           :if (= i 30)
             :do (format stream "... ")
                 (return))))

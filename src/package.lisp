@@ -1,21 +1,26 @@
 (defpackage :tuple
   (:use :cl)
+  (:shadow :pop :count :equal)
   (:export
 
    ;; Both a type and a tuple creation function
+   ;; FIXME now theres tuple and slice and this is a leak
    :tuple
 
    ;; Functions for operating on tuples
-   :empty-tuple
-   :tuple-lookup
-   :tuple-insert
-   :tuple-conj
-   :tuple-remove
-   :tuple-size
-   :tuple-reduce
-   :tuple-map
-   :tuple-filter
-   :tuple-eq
+   :lookup
+   :insert
+   :conj
+   :count
+   :pop
+   :slice
+   :peek
+   :equal
+
+   ;; :tuple-reduce
+   ;; :tuple-map
+   ;; :tuple-filter
+   ;; :tuple-eq
 
    ;; Utilities
    :tuple->list
