@@ -1,3 +1,4 @@
+;; To run clojure restricted to 1 core:
 ;; taskset -c 0 rlwrap clojure
 
 (defn range* [n]
