@@ -1,7 +1,8 @@
 (defsystem :tuple
   :description "Immutable, persistent tuple (vector) data structure"
+  :version "0.1.0"
+  :license "FreeBSD"
   :pathname "src"
-  :serial t
   :components ((:file "package")
                (:file "tuple"))
   :in-order-to ((test-op (test-op :tuple/test))))
@@ -9,7 +10,6 @@
 (defsystem :tuple/test
   :depends-on ("tuple" "fiveam")
   :pathname "test"
-  :serial t
   :components ((:file "package")
                (:file "tuple-test"))
   :perform (test-op (o c) (symbol-call :5am :run! :tuple)))
@@ -17,7 +17,6 @@
 (defsystem :tuple/bench
   :depends-on ("tuple" "trivial-garbage")
   :pathname "bench"
-  :serial t
   :components ((:file "bench")))
 
 (defsystem :tuple/reader
