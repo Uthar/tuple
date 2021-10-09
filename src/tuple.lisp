@@ -7,7 +7,7 @@
 A node contains an array of either other nodes or values, which forms
 a tree - values being the leaves of it.
   "
-  (array nil :type (simple-vector 32)))
+  (array nil :type (simple-vector 32) :read-only t))
 
 (defstruct (tuple (:copier nil))
   "
@@ -29,10 +29,10 @@ to the tail.
 Count is the number of items in the tuple, that is, the number of leaf
 nodes plus the fill-pointer of the tail.
   "
-  (shift  5 :type (integer 0 30))
-  (root nil :type node)
-  (tail nil :type (vector t 32))
-  (count  0 :type (unsigned-byte 32)))
+  (shift  5 :type (integer 0 30)      :read-only t)
+  (root nil :type node                :read-only t)
+  (tail nil :type (vector t 32)       :read-only t)
+  (count  0 :type (unsigned-byte 32)  :read-only t))
 
 (defun empty-node ()
   (make-node
@@ -222,13 +222,13 @@ Should support all the operations like a normal tuple
   "
 
   ;; The original tuple
-  (tuple (empty-tuple) :type tuple)
+  (tuple (empty-tuple) :type tuple :read-only t)
 
   ;; Where the view on the original tuple begins
-  (start 0 :type (unsigned-byte 32))
+  (start 0 :type (unsigned-byte 32) :read-only t)
 
   ;; Where it ends
-  (end 0 :type (unsigned-byte 32)))
+  (end 0 :type (unsigned-byte 32) :read-only t))
 
 (defmethod slice ((tuple tuple) start &optional (end (count tuple)))
   (make-slice :start start :end end :tuple tuple))
