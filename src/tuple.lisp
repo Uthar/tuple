@@ -381,7 +381,4 @@ Should support all the operations like a normal tuple
 (defmethod print-object ((object tuple) stream)
   (print-unreadable-object (object stream :type t)
     (loop :for i :below (count object)
-          :do (format stream "~s " (lookup object i))
-          :if (= i 30)
-            :do (format stream "... ")
-                (return))))
+          :do (format stream "~s " (lookup object i)))))
