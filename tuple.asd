@@ -19,3 +19,8 @@
   :pathname "bench"
   :serial t
   :components ((:file "bench")))
+
+(defsystem :tuple/reader
+  :depends-on ("tuple")
+  :pathname "src"
+  :components ((:file "reader")))
