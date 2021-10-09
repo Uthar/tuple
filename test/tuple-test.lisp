@@ -84,3 +84,13 @@
   (is (= 2 (count (slice (slice (tuple 1 2 3 4) 1) 1))))
   (is (= 1055 (count (slice (slice (sequence->tuple (range 1057)) 1) 1))))
   (is (= 31 (count (slice (slice (sequence->tuple (range 33)) 1) 1)))))
+
+(test equal-test
+  (is (tuple:equal (tuple 1 2 3) (tuple 1 2 3)))
+  (is (tuple:equal (slice (tuple -1 0 1 2 3 4 5) 2 5) (tuple 1 2 3)))
+  (is (tuple:equal (tuple 1 2 3) (slice (tuple -1 0 1 2 3 4 5) 2 5) ))
+  (is (tuple:equal (slice (tuple -1 0 1 2 3 4 5) 2 5) (slice (tuple -1 0 1 2 3 4 5) 2 5) ))
+  (is (tuple:equal (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1) (tuple 2 3)))
+  (is (tuple:equal (tuple 2 3) (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1) ))
+  (is (tuple:equal (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1)
+                   (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1))))
