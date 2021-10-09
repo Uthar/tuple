@@ -2,14 +2,66 @@
 
 (in-package :tuple)
 
-(defstruct (node (:copier nil))
+;;; API
+
+(defgeneric tuple (&rest elems)
+  (:documentation
+   "Create a tuple containing elems"))
+
+(defgeneric lookup (tuple index)
+  (:documentation
+   "Return element at index in log32N time"))
+
+(defgeneric insert (tuple index val)
+  (:documentation
+   "Return a new tuple that has val at index and shares structure with the old one."))
+
+(defgeneric conj (tuple val)
+  (:documentation
+   "Return a new tuple with val at the back"))
+
+(defgeneric count (tuple)
+  (:documentation
+   "Return, in constant time, the number of objects in a tuple"))
+
+(defgeneric pop (tuple)
+  (:documentation
+   "Return a new tuple without its last element"))
+
+(defgeneric slice (tuple start &optional end)
+  (:documentation
+   "Return a new tuple containing only items indexed from start to end.
+
+    No lookups or insertions are performed in the process, so this
+    operation is very fast."))
+
+(defgeneric peek (tuple)
+  (:documentation
+   "Return, in constant time, the last element of tuple"))
+
+(defgeneric equal (tuple1 tuple2)
+  (:documentation
+   "Return true if two tuples are equal in size and all their elements
+   are tuple:equal tuples or cl:equal objects, comparing in order"))
+
+(defstruct (tuple (:constructor nil) (:copier nil))
+  "Parent type for internal tuple implementations, also the API type")
+
+;;; Implementation follows
+
+(defstruct (%node (:copier nil)
+                  (:conc-name node-)
+                  (:constructor make-node))
   "
 A node contains an array of either other nodes or values, which forms
 a tree - values being the leaves of it.
   "
-  (array nil :type (simple-vector 32) :read-only t))
+  (array nil :type (simple-vector 32)))
 
-(defstruct (tuple (:copier nil))
+(defstruct (%tuple (:copier nil)
+                   (:conc-name tuple-)
+                   (:constructor make-tuple)
+                   (:include tuple))
   "
 A tuple is an integer-indexed, immutable collection of any kind of
 object.
@@ -30,7 +82,7 @@ Count is the number of items in the tuple, that is, the number of leaf
 nodes plus the fill-pointer of the tail.
   "
   (shift  5 :type (integer 0 30)      :read-only t)
-  (root nil :type node                :read-only t)
+  (root nil :type %node               :read-only t)
   (tail nil :type (vector t 32)       :read-only t)
   (count  0 :type (unsigned-byte 32)  :read-only t))
 
@@ -83,7 +135,7 @@ nodes plus the fill-pointer of the tail.
         (>= index (- count (fill-pointer (tuple-tail tuple)))))))
 
 ;; aref->svref ?
-(defmethod lookup ((tuple tuple) index)
+(defmethod lookup ((tuple %tuple) index)
   (if (tuple-index-in-tail? tuple index)
       (aref (tuple-tail tuple) (nextid index))
       (loop :with shift := (tuple-shift tuple)
@@ -99,7 +151,7 @@ nodes plus the fill-pointer of the tail.
 (declaim (ftype (function (tuple (unsigned-byte 32) t) tuple) insert))
 
 ;; still 2.5x slower than clojure... but why?
-(defmethod insert ((tuple tuple) index val)
+(defmethod insert ((tuple %tuple) index val)
   (declare (optimize (speed 3) (space 0) (debug 0) (safety 0) (compilation-speed 0)))
   (if (tuple-index-in-tail? tuple index)
       (let ((tail (copy-tail (tuple-tail tuple))))
@@ -204,7 +256,7 @@ nodes plus the fill-pointer of the tail.
               :count (1+ (tuple-count tuple))
               :tail tail))))
 
-(defmethod conj ((tuple tuple) val)
+(defmethod conj ((tuple %tuple) val)
   (cond ((tuple-space-in-tail? tuple)
          (tuple-push-tail tuple val))
         ((tuple-should-grow-new-root? tuple)
@@ -212,10 +264,12 @@ nodes plus the fill-pointer of the tail.
         (t
          (tuple-grow-from-tail tuple val))))
 
-(defmethod count ((tuple tuple))
+(defmethod count ((tuple %tuple))
   (tuple-count tuple))
 
-(defstruct slice
+(defstruct (%slice (:conc-name slice-)
+                   (:constructor make-slice)
+                   (:include tuple))
   "
 A narrowed view on a tuple, for efficient subvec.
 Should support all the operations like a normal tuple
@@ -230,12 +284,12 @@ Should support all the operations like a normal tuple
   ;; Where it ends
   (end 0 :type (unsigned-byte 32) :read-only t))
 
-(defmethod slice ((tuple tuple) start &optional (end (count tuple)))
+(defmethod slice ((tuple %tuple) start &optional (end (count tuple)))
   (make-slice :start start :end end :tuple tuple))
 
 ;; conj on slice is increase end and insert there to the backing tuple
 ;; if reached end of backing tuple, conj on it instead
-(defmethod conj ((tuple slice) val)
+(defmethod conj ((tuple %slice) val)
   (let ((end (slice-end tuple))
         (backing-tuple (slice-tuple tuple)))
     (make-slice :start (slice-start tuple)
@@ -246,7 +300,7 @@ Should support all the operations like a normal tuple
                     (insert backing-tuple end val)))))
 
 ;; insert on slice is just insert on the backing tuple with index+start
-(defmethod insert ((tuple slice) index val)
+(defmethod insert ((tuple %slice) index val)
   (let ((start (slice-start tuple)))
     (make-slice :start start
                 :end (slice-end tuple)
@@ -255,48 +309,42 @@ Should support all the operations like a normal tuple
 (defmethod pop ((tuple tuple))
   (slice tuple 0 (1- (count tuple))))
 
-(defmethod pop ((tuple slice))
-  (slice tuple 0 (1- (count tuple))))
-
 ;; subvec on slice is just make a slice with different start and end
-(defmethod slice ((tuple slice) start &optional (end (count tuple)))
+(defmethod slice ((tuple %slice) start &optional (end (count tuple)))
   (make-slice :start (+ start (slice-start tuple))
               :end (+ end (slice-start tuple))
               :tuple (slice-tuple tuple)))
 
 ;; count on slice is (- end start)
-(defmethod count ((tuple slice))
+(defmethod count ((tuple %slice))
   (- (slice-end tuple) (slice-start tuple)))
 
 ;; lookup on slice is lookup on backing tuple with index+start
-(defmethod lookup ((tuple slice) index)
+(defmethod lookup ((tuple %slice) index)
   (lookup (slice-tuple tuple) (+ index (slice-start tuple))))
 
 (defmethod peek ((tuple tuple))
   (lookup tuple (1- (count tuple))))
 
-(defmethod peek ((tuple slice))
-  (lookup tuple (1- (count tuple))))
-
-(defun tuple (&rest elems)
+(defmethod tuple (&rest elems)
   "Create a tuple containing arbitrary elems"
-  (reduce 'conj elems :initial-value (empty-tuple)))
+  (cl:reduce 'conj elems :initial-value (empty-tuple)))
 
 ;; FIXME implement sequence protocol
 (defun sequence->tuple (sequence)
-  (reduce 'conj sequence :initial-value (empty-tuple)))
+  (cl:reduce 'conj sequence :initial-value (empty-tuple)))
 
 
 ;;; utility
 
-;; these are probably slow as fuck
+;; these are probably sloooow
 
-(defun tuple-map (fn tuple)
+(defun map (fn tuple)
   (sequence->tuple
    (loop for x below (count tuple)
          collect (funcall fn (lookup tuple x)))))
 
-(defun tuple-filter (fn tuple)
+(defun filter (fn tuple)
   (sequence->tuple
    (loop for i below (count tuple)
          for x = (lookup tuple i)
@@ -307,20 +355,16 @@ Should support all the operations like a normal tuple
   (loop for x below (count tuple)
         collect (lookup tuple x)))
 
-(defmethod tuple->list ((tuple slice))
-  (loop for x below (count tuple)
-        collect (lookup tuple x)))
+(defun reduce (fn tuple)
+  (cl:reduce fn (tuple->list tuple)))
 
-(defun tuple-reduce (fn tuple)
-  (reduce fn (tuple->list tuple)))
-
-(defun equal (tuple1 tuple2)
+(defmethod equal ((tuple1 tuple) (tuple2 tuple))
   (and (= (count tuple1) (count tuple2))
        (loop for x below (count tuple1)
              for y below (count tuple2)
              always (let ((val (lookup tuple1 x)))
                       (funcall
-                       (if (typep val '(or tuple slice))
+                       (if (typep val 'tuple)
                            'equal
                            'cl:equal)
                        val (lookup tuple2 y))))))
@@ -331,14 +375,6 @@ Should support all the operations like a normal tuple
    (cons x (tuple->list tuple))))
 
 (defmethod print-object ((object tuple) stream)
-  (print-unreadable-object (object stream :type t)
-    (loop :for i :below (tuple-count object)
-          :do (format stream "~s " (lookup object i))
-          :if (= i 30)
-            :do (format stream "... ")
-                (return))))
-
-(defmethod print-object ((object slice) stream)
   (print-unreadable-object (object stream :type t)
     (loop :for i :below (count object)
           :do (format stream "~s " (lookup object i))
