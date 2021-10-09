@@ -1,10 +1,9 @@
 (defpackage :tuple
   (:use :cl)
-  (:shadow :pop :count :equal)
+  (:shadow :pop :count :equal :reduce :map)
   (:export
 
-   ;; Both a type and a tuple creation function
-   ;; FIXME now theres tuple and slice and this is a leak
+   ;; Both a type and a creation function
    :tuple
 
    ;; Functions for operating on tuples
@@ -17,10 +16,10 @@
    :peek
    :equal
 
-   ;; :tuple-reduce
-   ;; :tuple-map
-   ;; :tuple-filter
-   ;; :tuple-eq
+   ;; higher-order functions
+   :map
+   :reduce
+   :filter
 
    ;; Utilities
    :tuple->list
