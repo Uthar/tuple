@@ -102,12 +102,6 @@ nodes plus the fill-pointer of the tail.
 (defmethod insert ((tuple tuple) index val)
   (declare (optimize (speed 3) (space 0) (debug 0) (safety 0) (compilation-speed 0)))
   (if (tuple-index-in-tail? tuple index)
-      ;; Do I need to copy the tail?
-      ;; I guess i need a shallow copy, but what is the efficient way to do that?
-      ;;
-      ;; 1. I need a new tail, whole new allocated array
-      ;; 2. I want old objects in there
-      ;; 3. I want val inserted into the new allocated array
       (let ((tail (copy-tail (tuple-tail tuple))))
         (setf (aref tail (nextid index)) val)
         ;; Can share everything else
@@ -151,8 +145,9 @@ nodes plus the fill-pointer of the tail.
     ;; share whole thing on the 'left'
     (setf (aref (node-array root) 0) (tuple-root tuple))
 
-    ;; 1- cuz tail is shared there, val is put in new tail
-    (loop :with index := (1- (tuple-count tuple))
+    (loop
+          ;; tree and tail are full at this point
+          :with index := (1- (tuple-count tuple))
 
           ;; increase tree depth
           :with shift := (+ 5 (tuple-shift tuple))
@@ -165,9 +160,14 @@ nodes plus the fill-pointer of the tail.
             :then (setf next-node (empty-node))
 
           :finally
+
+             ;; place the full tail as the first value node of this new branch
              (setf (node-array node) (copy-seq (tuple-tail tuple)))
+
+             ;; place the incoming val in a fresh tail
              (let ((tail (empty-tail)))
                (vector-push val tail)
+
                (return (make-tuple
                         :root root
                         :shift shift
