@@ -85,7 +85,7 @@ nodes plus the fill-pointer of the tail.
   "
   (shift  5 :type (integer 0 30)      :read-only t)
   (root nil :type %node               :read-only t)
-  (tail nil :type (vector t 32)       :read-only t)
+  (tail nil :type (vector t)          :read-only t)
   (count  0 :type (unsigned-byte 32)  :read-only t))
 
 (defun empty-node ()
