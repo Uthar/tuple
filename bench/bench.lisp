@@ -10,22 +10,19 @@
 
 ;; (single core)
 
-;; as fast as clojure, which is unexpected
-;; 1kkk random conj
+;; 1kk random conj
 (bench
-  (reduce #'conj (range* 1e6) :initial-value (tuple)))
+  (cl:reduce #'conj (range* 1e6) :initial-value (tuple)))
 
-(defparameter tup (reduce #'conj (range* 1e6) :initial-value (tuple)))
+(defparameter tup (cl:reduce #'conj (range* 1e6) :initial-value (tuple)))
 
-;; 2x slower than clojure
-;; 1kk random insert
+;; 2kk random insert
 (bench
   (dotimes (_ 2)
   (dotimes (n (floor 1e6))
     (insert tup n (random 100)))))
 
-;; 1.5x slower than clojure, which is also unexpected
-;; 1kkkk lookups
+;; 1kkk lookups
 (bench
   (dotimes (n (floor 10e6))
     (lookup tup n)))

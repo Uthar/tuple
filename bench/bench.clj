@@ -1,21 +1,23 @@
 ;; To run clojure restricted to 1 core:
 ;; taskset -c 0 rlwrap clojure
+;; (load-file "bench.clj")
 
 (defn range* [n]
   (take n (repeatedly rand)))
 
-;; 1kkk conj
+;; 1kk conj
 (time
- (do (reduce conj `(~(vector) ~@(range* 1e7))) nil))
+ (do (reduce conj `(~(vector) ~@(range* 1e6))) nil))
 
 (def v (apply vector (range 1e6)))
 
 
-;; 1kk random insert
+;; 2kk random insert
 (time
- (dotimes [n 1e6] (assoc v n (rand 100))))
+ (dotimes [_ 2]
+ (dotimes [n 1e6] (assoc v n (rand 100)))))
 
 
-;; 1kkkk lookups
+;; 1kkk lookups
 (time
- (dotimes [n 1e8] (get v n)))
+ (dotimes [n 10e6] (get v n)))
