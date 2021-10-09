@@ -26,7 +26,7 @@
 
 (defgeneric pop (tuple)
   (:documentation
-   "Return a new tuple without its last element"))
+   "Return a new, 1- sized tuple"))
 
 (defgeneric slice (tuple start &optional end)
   (:documentation
