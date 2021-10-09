@@ -18,7 +18,7 @@
 
 (defgeneric conj (tuple val)
   (:documentation
-   "Return a new tuple with val at the back"))
+   "Return a new, 1+ sized tuple with val at the back"))
 
 (defgeneric count (tuple)
   (:documentation
@@ -50,6 +50,8 @@ different equality semantics"))
   "Parent type for internal tuple implementations, also the API type")
 
 ;;; Implementation follows
+
+;; using structs provides a nice performance boost in SBCL: http://www.sbcl.org/manual/index.html#Efficiency
 
 (defstruct (%node (:copier nil)
                   (:conc-name node-)
