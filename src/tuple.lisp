@@ -39,10 +39,12 @@
   (:documentation
    "Return, in constant time, the last element of tuple"))
 
-(defgeneric equal (tuple1 tuple2)
+(defgeneric equal (x y)
   (:documentation
-   "Return true if two tuples are equal in size and all their elements
-   are tuple:equal tuples or cl:equal objects, comparing in order"))
+   "Return true if two objects are equal.
+
+Extension point for teaching tuples about new data types with
+different equality semantics"))
 
 (defstruct (tuple (:constructor nil) (:copier nil))
   "Parent type for internal tuple implementations, also the API type")
@@ -358,16 +360,16 @@ Should support all the operations like a normal tuple
 (defun reduce (fn tuple)
   (cl:reduce fn (tuple->list tuple)))
 
+(defmethod equal ((val1 t) (val2 t))
+  "Return true if two vals are cl:equal"
+  (cl:equal val1 val2))
+
 (defmethod equal ((tuple1 tuple) (tuple2 tuple))
+  "Return true if two tuples are equal in size, and their elements, in order, are tuple:equal"
   (and (= (count tuple1) (count tuple2))
        (loop for x below (count tuple1)
              for y below (count tuple2)
-             always (let ((val (lookup tuple1 x)))
-                      (funcall
-                       (if (typep val 'tuple)
-                           'equal
-                           'cl:equal)
-                       val (lookup tuple2 y))))))
+             always (equal (lookup tuple1 x) (lookup tuple2 y)))))
 
 ;; is this too slow?
 (defun tuple-cons (x tuple)
