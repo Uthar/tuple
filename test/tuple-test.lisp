@@ -93,4 +93,7 @@
   (is (tuple:equal (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1) (tuple 2 3)))
   (is (tuple:equal (tuple 2 3) (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1) ))
   (is (tuple:equal (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1)
-                   (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1))))
+                   (slice (slice (tuple -1 0 1 2 3 4 5) 2 5) 1)))
+
+  (is (tuple:equal (tuple (tuple (tuple 1))) (tuple (tuple (tuple 1)))))
+  (is (tuple:equal (slice (tuple :foo (tuple (tuple 1))) 1) (tuple (tuple (tuple 1))))))
