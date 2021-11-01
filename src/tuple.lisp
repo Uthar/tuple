@@ -46,6 +46,10 @@
 Extension point for teaching tuples about new data types with
 different equality semantics"))
 
+(defgeneric concat (a b)
+  (:documentation
+   "Return the concatenation of a and b"))
+
 (defstruct (tuple (:constructor nil) (:copier nil))
   "Parent type for internal tuple implementations, also the API type")
 
@@ -372,6 +376,12 @@ Should support all the operations like a normal tuple
        (loop for x below (count tuple1)
              for y below (count tuple2)
              always (equal (lookup tuple1 x) (lookup tuple2 y)))))
+
+(defmethod concat ((a tuple) (b tuple))
+  (loop with tuple = a
+        for n below (count b)
+        do (setf tuple (conj tuple (lookup b n)))
+        finally (return tuple)))
 
 ;; is this too slow?
 (defun tuple-cons (x tuple)

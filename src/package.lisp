@@ -15,6 +15,7 @@
    :slice
    :peek
    :equal
+   :concat
 
    ;; higher-order functions
    :map

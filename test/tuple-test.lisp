@@ -97,3 +97,7 @@
 
   (is (tuple:equal (tuple (tuple (tuple 1))) (tuple (tuple (tuple 1)))))
   (is (tuple:equal (slice (tuple :foo (tuple (tuple 1))) 1) (tuple (tuple (tuple 1))))))
+
+(test concat-test
+  (is (tuple:equal (tuple 1 2 3 4) (tuple:concat (tuple 1 2) (tuple 3 4))))
+  (is (tuple:equal (tuple:concat (tuple 1 2) (tuple 3 4)) (tuple 1 2 3 4))))

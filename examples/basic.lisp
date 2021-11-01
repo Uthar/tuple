@@ -20,6 +20,8 @@
 
 (tuple:count tup)
 
+(tuple:concat tup (tuple:tuple 42 43 44))
+
 ;; Optional `[` reader macro
 (asdf:load-system :tuple/reader)
 (tuple:equal [1 2 (+ 1 2)] (tuple:tuple 1 2 3))
