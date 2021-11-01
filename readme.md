@@ -37,58 +37,7 @@ Alternatively, simply load `src/package.lisp` and `src/tuple.lisp`:
 
 ## basic use
 
-One can start using this library by evaluating expressions as below. The API is documented in `tuple.lisp`.
-
-- Create:
-```
-(setf tup (tuple:tuple 1 2 "foo" 3.14))
-```
-
-- Conj
-```
-(tuple:conj tup "bar")
-```
-
-- Pop
-```
-(tuple:pop tup)
-```
-
-- Insert
-```
-(tuple:insert tup 0 "baz")
-```
-
-- Lookup
-```
-(tuple:lookup tup 3)
-```
-
-- Peek
-```
-(tuple:peek tup)
-```
-
-- Equal
-```
-(tuple:equal tup tup)
-```
-
-- Slice
-```
-(tuple:slice tup 1 3)
-```
-
-- Count
-```
-(tuple:count tup)
-```
-
-- Optional `[` reader macro in `reader.lisp`:
-```
-(load "src/reader.lisp") ;; or (asdf:load-system :tuple/reader)
-(tuple:equal [1 2 (+ 1 2)] (tuple:tuple 1 2 3))
-```
+Take a look in `examples/`. The API is documented in `tuple.lisp`.
 
 ## CL implementations
 
