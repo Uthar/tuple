@@ -132,19 +132,17 @@ nodes plus the fill-pointer of the tail.
         (shift (tuple-shift tuple)))
     (= count (+ 32 (expt 2 (+ 5 shift))))))
 
-(declaim (inline tuple-index-in-tail?)
-         (ftype (function (tuple (unsigned-byte 32)) boolean) tuple-index-in-tail?))
+(declaim (inline tuple-index-in-tail?))
 
 (defun tuple-index-in-tail? (tuple index)
   (declare (optimize speed))
   (let* ((count (tuple-count tuple))
          (tail-count (1+ (mod (1- count) 32)))
          (threshold (- count tail-count)))
-    (or (<= count 32) ;; index?
+    (or (<= count 32)
         (>= index threshold))))
 
 ;; aref->svref ?
-(declaim (ftype (function (%tuple (unsigned-byte 32)) t) lookup))
 (defmethod lookup ((tuple %tuple) index)
   (declare (optimize speed))
   (if (tuple-index-in-tail? tuple index)
@@ -158,8 +156,6 @@ nodes plus the fill-pointer of the tail.
             :finally (return (svref arr (nextid index))))))
 
 (define-symbol-macro next-node (aref (node-array node) nextid))
-
-(declaim (ftype (function (tuple (unsigned-byte 32) t) tuple) insert))
 
 ;; still 2.5x slower than clojure... but why?
 (defmethod insert ((tuple %tuple) index val)
