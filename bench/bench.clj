@@ -20,4 +20,5 @@
 
 ;; 1kkk lookups
 (time
- (dotimes [n 10e6] (get v n)))
+ (dotimes [_ 10]
+ (dotimes [n 1e6] (get v n))))
