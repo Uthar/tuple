@@ -83,11 +83,11 @@ lookup and conj is faster with it because there's no need to traverse
 the tree for values in the tail.
 
 Nodes are always (simple-vector 32) because the tail gets copied to a
-new node only when it's full. Otherwise new values are vector-pushed
-to the tail.
+new node only when it's full. Otherwise new values are inserted to the
+tail.
 
 Count is the number of items in the tuple, that is, the number of leaf
-nodes plus the fill-pointer of the tail.
+nodes plus the number of elements in the tail.
   "
   (shift  5 :type (integer 0 30)      :read-only t)
   (root nil :type %node               :read-only t)
@@ -155,7 +155,6 @@ nodes plus the fill-pointer of the tail.
     (or (<= count 32)
         (>= index threshold))))
 
-;; aref->svref ?
 (defmethod lookup ((tuple %tuple) index)
   (declare (optimize speed))
   (if (tuple-index-in-tail? tuple index)
@@ -170,7 +169,7 @@ nodes plus the fill-pointer of the tail.
 
 (define-symbol-macro next-node (svref (node-array node) nextid))
 
-;; still 2.5x slower than clojure... but why?
+;; still 2x slower than clojure... but why?
 (defmethod insert ((tuple %tuple) index val)
   (declare (optimize speed))
   (if (tuple-index-in-tail? tuple index)

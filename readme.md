@@ -57,11 +57,12 @@ According to the completely unscientific benchmarks in `bench.lisp`:
 - append
 ```
 Evaluation took:
-  0.218 seconds of real time
-  0.217366 seconds of total run time (0.136618 user, 0.080748 system)
-  99.54% CPU
-  586,773,657 processor cycles
-  380,201,408 bytes consed
+  0.237 seconds of real time
+  0.237132 seconds of total run time (0.202138 user, 0.034994 system)
+  [ Run times consist of 0.075 seconds GC time, and 0.163 seconds non-GC time. ]
+  100.00% CPU
+  639,851,499 processor cycles
+  380,199,296 bytes consed
 ```
 
 - insert
@@ -78,10 +79,10 @@ Evaluation took:
 - lookup
 ```
 Evaluation took:
-  0.107 seconds of real time
-  0.106907 seconds of total run time (0.106907 user, 0.000000 system)
-  100.00% CPU
-  288,170,574 processor cycles
+  0.228 seconds of real time
+  0.227378 seconds of total run time (0.227378 user, 0.000000 system)
+  99.56% CPU
+  613,114,533 processor cycles
   0 bytes consed
 ```
 
@@ -89,7 +90,7 @@ Evaluation took:
 
 - append
 ```
-"Elapsed time: 219.145429 msecs"
+"Elapsed time: 211.689438 msecs"
 ```
 
 - insert
@@ -99,7 +100,7 @@ Evaluation took:
 
 - lookup
 ```
-"Elapsed time: 100.984072 msecs"
+"Elapsed time: 213.015009 msecs"
 ```
 
 Other implementations don't have compilers as good as SBCL, so

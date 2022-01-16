@@ -24,5 +24,6 @@
 
 ;; 1kkk lookups
 (bench
-  (dotimes (n (floor 10e6))
-    (lookup tup n)))
+  (dotimes (_ 10)
+  (dotimes (n (floor 1e6))
+    (lookup tup n))))
