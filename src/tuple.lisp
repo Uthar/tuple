@@ -112,7 +112,7 @@ nodes plus the fill-pointer of the tail.
 (declaim (inline copy-node))
 
 (defun copy-node (node)
-  (declare (optimize speed (space 0) (debug 0) (safety 0) (compilation-speed 0)))
+  (declare (optimize speed))
   (make-node :array (copy-seq (node-array node))))
 
 (defun copy-tail (tail)
@@ -160,7 +160,7 @@ nodes plus the fill-pointer of the tail.
 
 ;; still 2.5x slower than clojure... but why?
 (defmethod insert ((tuple %tuple) index val)
-  (declare (optimize (speed 3) (space 0) (debug 0) (safety 0) (compilation-speed 0)))
+  (declare (optimize speed))
   (if (tuple-index-in-tail? tuple index)
       (let ((tail (copy-tail (tuple-tail tuple))))
         (setf (aref tail (nextid index)) val)
@@ -184,10 +184,16 @@ nodes plus the fill-pointer of the tail.
                                    :tail (tuple-tail tuple)
                                    :count (tuple-count tuple))))))
 
+(declaim (inline tuple-space-in-tail?))
 (defun tuple-space-in-tail? (tuple)
-  (< (fill-pointer (tuple-tail tuple)) 32))
+  (let ((fp (fill-pointer (tuple-tail tuple))))
+    (declare (optimize speed)
+             (type (integer 0 32) fp))
+    (< fp 32)))
 
+(declaim (inline tuple-push-tail))
 (defun tuple-push-tail (tuple val)
+  (declare (optimize speed))
   (let ((tail (copy-tail (tuple-tail tuple))))
     (vector-push val tail)
     (make-tuple :shift (tuple-shift tuple)
