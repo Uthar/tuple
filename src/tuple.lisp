@@ -94,13 +94,20 @@ nodes plus the fill-pointer of the tail.
   (tail nil :type (simple-vector 32)  :read-only t)
   (count  0 :type (unsigned-byte 32)  :read-only t))
 
+(declaim (inline empty-node))
+
 (defun empty-node ()
   (make-node
    :array
    (make-array 32 :initial-element nil)))
 
+(declaim (inline empty-tail)
+         (ftype (function () (simple-vector 32)) empty-tail))
+
 (defun empty-tail ()
   (make-array 32 :initial-element nil))
+
+(declaim (inline empty-tuple))
 
 (defun empty-tuple ()
   (make-tuple
@@ -130,7 +137,10 @@ nodes plus the fill-pointer of the tail.
   (declare (optimize speed))
   (logand (ash index (- shift)) #b11111))
 
+(declaim (inline tuple-should-grow-new-root?))
+
 (defun tuple-should-grow-new-root? (tuple)
+  (declare (optimize speed))
   (let ((count (tuple-count tuple))
         (shift (tuple-shift tuple)))
     (= count (+ 32 (expt 2 (+ 5 shift))))))
@@ -158,7 +168,7 @@ nodes plus the fill-pointer of the tail.
             :then (node-array (svref arr nextid))
             :finally (return (svref arr (nextid index))))))
 
-(define-symbol-macro next-node (aref (node-array node) nextid))
+(define-symbol-macro next-node (svref (node-array node) nextid))
 
 ;; still 2.5x slower than clojure... but why?
 (defmethod insert ((tuple %tuple) index val)
@@ -190,6 +200,7 @@ nodes plus the fill-pointer of the tail.
 (defun tuple-space-in-tail? (tuple)
   ;; if count is a multiple of 32, then the tail is full, since it
   ;; gets flushed during every 33th conj
+  (declare (optimize speed))
   (let ((count (tuple-count tuple)))
     (or (< count 32)
         (not (zerop (mod count 32))))))
