@@ -115,6 +115,9 @@ nodes plus the fill-pointer of the tail.
   (declare (optimize speed))
   (make-node :array (copy-seq (node-array node))))
 
+(declaim (inline copy-tail)
+         (ftype (function ((simple-vector 32)) (simple-vector 32)) copy-tail))
+
 (defun copy-tail (tail)
   (declare (optimize speed))
   (copy-seq tail))
