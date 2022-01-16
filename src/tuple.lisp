@@ -241,7 +241,7 @@ nodes plus the number of elements in the tail.
           :finally
 
              ;; place the full tail as the first value node of this new branch
-             (setf (node-array node) (copy-seq (tuple-tail tuple)))
+             (setf (node-array node) (tuple-tail tuple))
 
              ;; place the incoming val in a fresh tail
              (let ((tail (empty-tail)))
@@ -272,10 +272,7 @@ nodes plus the number of elements in the tail.
                   node next-node)
         :finally
            (setf (svref tail 0) val)
-           ;; FIXME could be faster? try changing node-array to (vector t 32)
-           ;; could have been the same vector, but has to be a
-           ;; simple-vector so copy-seq does just that
-           (setf (node-array node) (copy-seq (tuple-tail tuple)))
+           (setf (node-array node) (tuple-tail tuple))
            (return
              (make-tuple
               :root root
