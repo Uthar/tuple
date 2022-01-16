@@ -36,7 +36,7 @@
     (is (= (count tup1) 32))
     (is (= (count tup2) 33))
     (is (= (length (tuple::tuple-tail tup1)) 32))
-    (is (= (length (tuple::tuple-tail tup2)) 1))
+    (is (not (eq (tuple::tuple-tail tup2) (tuple::tuple-tail tup1))))
     (is (equalp (tuple::tuple-tail tup1)
                 (tuple::node-array (aref (tuple::node-array (tuple::tuple-root tup2)) 0))))
     (is (loop with tail = (tuple::tuple-tail tup1)
@@ -50,7 +50,7 @@
     (is (= (count tup1) 1056))
     (is (= (count tup2) 1057))
     (is (= (length (tuple::tuple-tail tup1)) 32))
-    (is (= (length (tuple::tuple-tail tup2)) 1))
+    (is (not (eq (tuple::tuple-tail tup2) (tuple::tuple-tail tup1))))
     (is (eq (tuple::tuple-root tup1) (aref (tuple::node-array (tuple::tuple-root tup2)) 0)))
     (is (eq (aref (tuple::tuple-tail tup2) 0) :foo))))
 

@@ -91,7 +91,7 @@ nodes plus the fill-pointer of the tail.
   "
   (shift  5 :type (integer 0 30)      :read-only t)
   (root nil :type %node               :read-only t)
-  (tail nil :type (vector t)          :read-only t)
+  (tail nil :type (simple-vector 32)  :read-only t)
   (count  0 :type (unsigned-byte 32)  :read-only t))
 
 (defun empty-node ()
@@ -100,7 +100,7 @@ nodes plus the fill-pointer of the tail.
    (make-array 32 :initial-element nil)))
 
 (defun empty-tail ()
-  (make-array 32 :fill-pointer 0 :initial-element nil))
+  (make-array 32 :initial-element nil))
 
 (defun empty-tuple ()
   (make-tuple
@@ -116,9 +116,8 @@ nodes plus the fill-pointer of the tail.
   (make-node :array (copy-seq (node-array node))))
 
 (defun copy-tail (tail)
-  (loop :with new := (empty-tail)
-        :for x :across tail :do (vector-push x new)
-        :finally (return new)))
+  (declare (optimize speed))
+  (copy-seq tail))
 
 (declaim
  (inline nextid)
@@ -138,21 +137,25 @@ nodes plus the fill-pointer of the tail.
 
 (defun tuple-index-in-tail? (tuple index)
   (declare (optimize speed))
-  (let ((count (tuple-count tuple)))
-    (or (< count 32) ;; index?
-        (>= index (- count (fill-pointer (tuple-tail tuple)))))))
+  (let* ((count (tuple-count tuple))
+         (tail-count (1+ (mod (1- count) 32)))
+         (threshold (- count tail-count)))
+    (or (<= count 32) ;; index?
+        (>= index threshold))))
 
 ;; aref->svref ?
+(declaim (ftype (function (%tuple (unsigned-byte 32)) t) lookup))
 (defmethod lookup ((tuple %tuple) index)
+  (declare (optimize speed))
   (if (tuple-index-in-tail? tuple index)
-      (aref (tuple-tail tuple) (nextid index))
+      (svref (tuple-tail tuple) (nextid index))
       (loop :with shift := (tuple-shift tuple)
             :with root-array := (node-array (tuple-root tuple))
             :for level :downfrom shift :above 0 :by 5
             :for nextid := (nextid index level)
-            :for arr := (node-array (aref root-array nextid))
-              :then (node-array (aref arr nextid))
-            :finally (return (aref arr (nextid index))))))
+            :for arr := (node-array (svref root-array nextid))
+            :then (node-array (svref arr nextid))
+            :finally (return (svref arr (nextid index))))))
 
 (define-symbol-macro next-node (aref (node-array node) nextid))
 
@@ -186,16 +189,17 @@ nodes plus the fill-pointer of the tail.
 
 (declaim (inline tuple-space-in-tail?))
 (defun tuple-space-in-tail? (tuple)
-  (let ((fp (fill-pointer (tuple-tail tuple))))
-    (declare (optimize speed)
-             (type (integer 0 32) fp))
-    (< fp 32)))
+  ;; if count is a multiple of 32, then the tail is full, since it
+  ;; gets flushed during every 33th conj
+  (let ((count (tuple-count tuple)))
+    (or (< count 32)
+        (not (zerop (mod count 32))))))
 
 (declaim (inline tuple-push-tail))
 (defun tuple-push-tail (tuple val)
   (declare (optimize speed))
   (let ((tail (copy-tail (tuple-tail tuple))))
-    (vector-push val tail)
+    (setf (svref tail (nextid (tuple-count tuple))) val)
     (make-tuple :shift (tuple-shift tuple)
                 :count (1+ (tuple-count tuple))
                 :root (tuple-root tuple)
@@ -232,7 +236,7 @@ nodes plus the fill-pointer of the tail.
 
              ;; place the incoming val in a fresh tail
              (let ((tail (empty-tail)))
-               (vector-push val tail)
+               (setf (svref tail 0) val)
 
                (return (make-tuple
                         :root root
@@ -258,7 +262,7 @@ nodes plus the fill-pointer of the tail.
                       (empty-node))
                   node next-node)
         :finally
-           (vector-push val tail)
+           (setf (svref tail 0) val)
            ;; FIXME could be faster? try changing node-array to (vector t 32)
            ;; could have been the same vector, but has to be a
            ;; simple-vector so copy-seq does just that
