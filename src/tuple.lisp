@@ -139,11 +139,18 @@ nodes plus the number of elements in the tail.
 
 (declaim (inline tuple-should-grow-new-root?))
 
+;; tuple-full-p
 (defun tuple-should-grow-new-root? (tuple)
   (declare (optimize speed))
   (let ((count (tuple-count tuple))
         (shift (tuple-shift tuple)))
-    (= count (+ 32 (expt 2 (+ 5 shift))))))
+    (= count
+       (+
+       ;; tail is full
+        32
+
+        ;; tree is full
+        (expt 2 (+ 5 shift))))))
 
 (declaim (inline tuple-index-in-tail?))
 
@@ -152,7 +159,7 @@ nodes plus the number of elements in the tail.
   (let* ((count (tuple-count tuple))
          (tail-count (1+ (mod (1- count) 32)))
          (threshold (- count tail-count)))
-    (or (<= count 32)
+    (or (<= count 32)  ;; needed?
         (>= index threshold))))
 
 (defmethod lookup ((tuple %tuple) index)
@@ -196,6 +203,7 @@ nodes plus the number of elements in the tail.
                                    :count (tuple-count tuple))))))
 
 (declaim (inline tuple-space-in-tail?))
+;; tail-full-p
 (defun tuple-space-in-tail? (tuple)
   ;; if count is a multiple of 32, then the tail is full, since it
   ;; gets flushed during every 33th conj
@@ -205,6 +213,7 @@ nodes plus the number of elements in the tail.
         (not (zerop (mod count 32))))))
 
 (declaim (inline tuple-push-tail))
+;; let  count
 (defun tuple-push-tail (tuple val)
   (declare (optimize speed))
   (let ((tail (copy-tail (tuple-tail tuple))))
@@ -225,7 +234,10 @@ nodes plus the number of elements in the tail.
     (setf (aref (node-array root) 0) (tuple-root tuple))
 
     (loop
+
           ;; tree and tail are full at this point
+
+          ;; going down the last node (because of shift+5) - NOT the last value
           :with index := (1- (tuple-count tuple))
 
           ;; increase tree depth
@@ -240,7 +252,8 @@ nodes plus the number of elements in the tail.
 
           :finally
 
-             ;; place the full tail as the first value node of this new branch
+             ;; place the full tail as the value array of the last node (leaves)
+             ;; can use reference since everything else does CoW
              (setf (node-array node) (tuple-tail tuple))
 
              ;; place the incoming val in a fresh tail
