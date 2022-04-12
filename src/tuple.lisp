@@ -2,6 +2,8 @@
 
 (in-package :tuple)
 
+(declaim (optimize speed))
+
 ;;; API
 
 (defgeneric tuple (&rest elems)
@@ -23,6 +25,8 @@
 (defgeneric count (tuple)
   (:documentation
    "Return, in constant time, the number of objects in a tuple"))
+
+(declaim (ftype (function (tuple) (unsigned-byte 32)) count))
 
 (defgeneric pop (tuple)
   (:documentation
@@ -118,6 +122,12 @@ nodes plus the number of elements in the tail.
 
 (declaim (inline copy-node))
 
+;; (defun copy-node-array (node)
+;;   (declare (optimize speed))
+;;   (let ((array (node-array node))
+;;         (new-array (make-array 32 :initial-contents
+;;     (
+
 (defun copy-node (node)
   (declare (optimize speed))
   (make-node :array (copy-seq (node-array node))))
@@ -153,6 +163,8 @@ nodes plus the number of elements in the tail.
         (expt 2 (+ 5 shift))))))
 
 (declaim (inline tuple-index-in-tail?))
+(declaim
+ (ftype (function (tuple (unsigned-byte 32)) boolean) tuple-index-in-tail?))
 
 (defun tuple-index-in-tail? (tuple index)
   (declare (optimize speed))
@@ -238,13 +250,13 @@ nodes plus the number of elements in the tail.
           ;; tree and tail are full at this point
 
           ;; going down the last node (because of shift+5) - NOT the last value
-          :with index := (1- (tuple-count tuple))
+          :with index fixnum := (1- (tuple-count tuple))
 
           ;; increase tree depth
-          :with shift := (+ 5 (tuple-shift tuple))
+          :with shift fixnum := (+ 5 (tuple-shift tuple))
 
-          :for level :downfrom shift :above 0 :by 5
-          :for nextid := (nextid index level)
+          :for level fixnum :downfrom shift :above 0 :by 5
+          :for nextid fixnum := (nextid index level)
 
           ;; make a new path to leaf
           :for node := (setf node root next-node (empty-node))
@@ -265,6 +277,8 @@ nodes plus the number of elements in the tail.
                         :shift shift
                         :count (1+ (tuple-count tuple))
                         :tail tail))))))
+
+(declaim (inline make-tuple make-node tuple-grow-from-tail))
 
 (defun tuple-grow-from-tail (tuple val)
   "Incorporate current tail into node tree, push val to a new tail"
@@ -389,7 +403,7 @@ Should support all the operations like a normal tuple
            collect x)))
 
 (defmethod tuple->list ((tuple tuple))
-  (loop for x below (count tuple)
+  (loop for x fixnum below (count tuple)
         collect (lookup tuple x)))
 
 (defun reduce (fn tuple)
@@ -401,14 +415,17 @@ Should support all the operations like a normal tuple
 
 (defmethod equal ((tuple1 tuple) (tuple2 tuple))
   "Return true if two tuples are equal in size, and their elements, in order, are tuple:equal"
-  (and (= (count tuple1) (count tuple2))
-       (loop for x below (count tuple1)
-             for y below (count tuple2)
-             always (equal (lookup tuple1 x) (lookup tuple2 y)))))
+  (let ((cnt1 (count tuple1))
+        (cnt2 (count tuple2)))
+    (declare (type fixnum cnt1 cnt2))
+    (and (= cnt1 cnt2)
+         (loop for x fixnum below cnt1
+               for y fixnum below cnt2
+               always (equal (lookup tuple1 x) (lookup tuple2 y))))))
 
 (defmethod concat ((a tuple) (b tuple))
   (loop with tuple = a
-        for n below (count b)
+        for n fixnum below (count b)
         do (setf tuple (conj tuple (lookup b n)))
         finally (return tuple)))
 
@@ -418,6 +435,7 @@ Should support all the operations like a normal tuple
    (cons x (tuple->list tuple))))
 
 (defmethod print-object ((object tuple) stream)
+  (declare (type stream stream))
   (print-unreadable-object (object stream :type t)
-    (loop :for i :below (count object)
+    (loop :for i fixnum :below (count object)
           :do (format stream "~s " (lookup object i)))))
