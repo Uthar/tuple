@@ -14,7 +14,7 @@
 
 ;; 1kk random conj
 (bench
-  (cl:reduce #'conj range :initial-value (tuple)))
+  (tuple:count (cl:reduce #'conj range :initial-value (tuple))))
 
 (defparameter tup (cl:reduce #'conj range :initial-value (tuple)))
 
