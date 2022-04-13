@@ -355,6 +355,7 @@ Should support all the operations like a normal tuple
 ;; insert on slice is just insert on the backing tuple with index+start
 (defmethod insert ((tuple %slice) index val)
   (let ((start (slice-start tuple)))
+    (declare (type (unsigned-byte 32) start index))
     (make-slice :start start
                 :end (slice-end tuple)
                 :tuple (insert (slice-tuple tuple) (+ index start) val))))
@@ -364,9 +365,11 @@ Should support all the operations like a normal tuple
 
 ;; subvec on slice is just make a slice with different start and end
 (defmethod slice ((tuple %slice) start &optional (end (count tuple)))
-  (make-slice :start (+ start (slice-start tuple))
-              :end (+ end (slice-start tuple))
-              :tuple (slice-tuple tuple)))
+  (let ((start* (slice-start tuple)))
+    (declare (type (unsigned-byte 32) start end start*))
+    (make-slice :start (+ start start*)
+                :end (+ end start*)
+                :tuple (slice-tuple tuple))))
 
 ;; count on slice is (- end start)
 (defmethod count ((tuple %slice))
@@ -374,7 +377,9 @@ Should support all the operations like a normal tuple
 
 ;; lookup on slice is lookup on backing tuple with index+start
 (defmethod lookup ((tuple %slice) index)
-  (lookup (slice-tuple tuple) (+ index (slice-start tuple))))
+  (let ((start (slice-start tuple)))
+    (declare (type (unsigned-byte 32) index start))
+    (lookup (slice-tuple tuple) (+ index start))))
 
 (defmethod peek ((tuple tuple))
   (lookup tuple (1- (count tuple))))
@@ -393,14 +398,16 @@ Should support all the operations like a normal tuple
 ;; these are probably sloooow
 
 (defun map (fn tuple)
+  (declare (type function fn))
   (sequence->tuple
-   (loop for x below (count tuple)
+   (loop for x fixnum below (count tuple)
          collect (funcall fn (lookup tuple x)))))
 
 (defun filter (fn tuple)
+  (declare (type function fn))
   (sequence->tuple
-   (loop for i below (count tuple)
-         for x = (lookup tuple i)
+   (loop for i fixnum below (count tuple)
+         for x fixnum = (lookup tuple i)
          if (funcall fn x)
            collect x)))
 
