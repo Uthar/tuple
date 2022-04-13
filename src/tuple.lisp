@@ -169,6 +169,8 @@ nodes plus the number of elements in the tail.
 (defun tuple-index-in-tail? (tuple index)
   (declare (optimize speed))
   (let* ((count (tuple-count tuple))
+         ;; Nodes are always full 32 arrays, so this gets the number of
+         ;; elements that are outside the nodes, and so, are in the tail.
          (tail-count (1+ (mod (1- count) 32)))
          (threshold (- count tail-count)))
     (or (<= count 32)  ;; needed?
@@ -423,6 +425,7 @@ Should support all the operations like a normal tuple
                for y fixnum below cnt2
                always (equal (lookup tuple1 x) (lookup tuple2 y))))))
 
+;; see seq:cat in http://fossil.galkowski.xyz/cl-fp
 (defmethod concat ((a tuple) (b tuple))
   (loop with tuple = a
         for n fixnum below (count b)
@@ -430,6 +433,9 @@ Should support all the operations like a normal tuple
         finally (return tuple)))
 
 ;; is this too slow?
+;; could just:
+;;  (seq:cat (list x) tuple)
+;; less consing
 (defun tuple-cons (x tuple)
   (sequence->tuple
    (cons x (tuple->list tuple))))
