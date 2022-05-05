@@ -6,8 +6,14 @@
       (java:jstatic "adopt" "clojure.lang.PersistentVector"
                     (java:jarray-from-list elems))))
 
+(defvar persistent-vector (java:jclass "clojure.lang.PersistentVector"))
+(defvar get (java:jmethod persistent-vector "get" "int"))
+
+(defun %get (tuple index)
+  (java:jcall get tuple index))
+
 (defmethod lookup (tuple index)
-  (java:jcall "nth" tuple index))
+  (%get tuple index))
 
 (defmethod insert (tuple index val)
   (java:jcall "assoc" tuple index val))
