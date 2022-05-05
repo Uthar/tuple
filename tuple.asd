@@ -4,7 +4,9 @@
   :license "FreeBSD"
   :pathname "src"
   :components ((:file "package")
-               (:file "tuple"))
+               (:file "tuple")
+               #+abcl (:file "abcl")
+               #-abcl (:file "generic"))
   :in-order-to ((test-op (test-op :tuple/test))))
 
 (defsystem :tuple/test

@@ -30,6 +30,7 @@
     (is (equal (lookup tup2 1) "bar"))
     (is (equal (lookup tup2 2) "baz"))))
 
+#-abcl
 (test tail-copied
   (let* ((tup1 (sequence->tuple (range 32)))
          (tup2 (conj tup1 :foo)))
@@ -44,6 +45,7 @@
               always (= (aref tail n) n)))
     (is (eq (aref (tuple::tuple-tail tup2) 0) :foo))))
 
+#-abcl
 (test share-root
   (let* ((tup1 (sequence->tuple (range 1056)))
          (tup2 (conj tup1 :foo)))
