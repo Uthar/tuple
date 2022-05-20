@@ -4,6 +4,9 @@
 
 ;;; API
 
+(defstruct (tuple (:constructor nil) (:copier nil))
+  "Parent type for internal tuple implementations, also the API type")
+
 (defgeneric tuple (&rest elems)
   (:documentation
    "Create a tuple containing elems"))
@@ -20,6 +23,7 @@
   (:documentation
    "Return a new, 1+ sized tuple with val at the back"))
 
+(declaim (ftype (function (tuple) (unsigned-byte 32)) count))
 (defgeneric count (tuple)
   (:documentation
    "Return, in constant time, the number of objects in a tuple"))
@@ -50,12 +54,13 @@ different equality semantics"))
   (:documentation
    "Return the concatenation of a and b"))
 
-(defstruct (tuple (:constructor nil) (:copier nil))
-  "Parent type for internal tuple implementations, also the API type")
 
 ;;; Implementation follows
 
 ;; using structs provides a nice performance boost in SBCL: http://www.sbcl.org/manual/index.html#Efficiency
+
+(declaim (type (simple-vector 32) +empty-array+))
+(defparameter +empty-array+ (make-array 32 :initial-element nil))
 
 (defstruct (%node (:copier nil)
                   (:conc-name node-)
@@ -64,7 +69,9 @@ different equality semantics"))
 A node contains an array of either other nodes or values, which forms
 a tree - values being the leaves of it.
   "
-  (array nil :type (simple-vector 32)))
+  (array +empty-array+ :type (simple-vector 32)))
+
+(defparameter +empty-node+ (make-node))
 
 (defstruct (%tuple (:copier nil)
                    (:conc-name tuple-)
@@ -89,45 +96,26 @@ tail.
 Count is the number of items in the tuple, that is, the number of leaf
 nodes plus the number of elements in the tail.
   "
-  (shift  5 :type (integer 0 30)      :read-only t)
-  (root nil :type %node               :read-only t)
-  (tail nil :type (simple-vector 32)  :read-only t)
-  (count  0 :type (unsigned-byte 32)  :read-only t))
+  (shift  5            :type (integer 5 30)      :read-only t)
+  (root +empty-node+   :type %node               :read-only t)
+  (tail +empty-array+  :type (simple-vector 32)  :read-only t)
+  (count  0            :type (unsigned-byte 32)  :read-only t))
 
-(declaim (inline empty-node))
-
-(defun empty-node ()
-  (make-node
-   :array
-   (make-array 32 :initial-element nil)))
-
-(declaim (inline empty-tail)
-         (ftype (function () (simple-vector 32)) empty-tail))
-
-(defun empty-tail ()
-  (make-array 32 :initial-element nil))
-
-(declaim (inline empty-tuple))
-
-(defun empty-tuple ()
-  (make-tuple
-   :root (empty-node)
-   :tail (empty-tail)
-   :count 0
-   :shift 5))
+(defparameter +empty-tuple+ (make-tuple))
 
 (declaim (inline copy-node))
 
+;; FIXME: consing up a new array (make-array) (inside copy-seq) is the HOTSPOT!!!
+;; FIXME: defgeneric is another hotspot!!! Could fall back to a defun for speed!
 (defun copy-node (node)
-  (declare (optimize speed))
-  (make-node :array (copy-seq (node-array node))))
-
-(declaim (inline copy-tail)
-         (ftype (function ((simple-vector 32)) (simple-vector 32)) copy-tail))
-
-(defun copy-tail (tail)
-  (declare (optimize speed))
-  (copy-seq tail))
+  ;; (declare (optimize speed))
+  (let (
+        (array (copy-seq (node-array node)))
+        ;; (a (make-array 40096 :initial-element 1))
+        ;; (array (node-array node))
+        )
+    ;; node))
+    (make-node :array array)))
 
 (declaim
  (inline nextid)
@@ -156,6 +144,7 @@ nodes plus the number of elements in the tail.
 
 (defun tuple-index-in-tail? (tuple index)
   (declare (optimize speed))
+  (declare (type (unsigned-byte 32) index))
   (let* ((count (tuple-count tuple))
          (tail-count (1+ (mod (1- count) 32)))
          (threshold (- count tail-count)))
@@ -164,6 +153,7 @@ nodes plus the number of elements in the tail.
 
 (defmethod lookup ((tuple %tuple) index)
   (declare (optimize speed))
+  (declare (type (unsigned-byte 32) index))
   (if (tuple-index-in-tail? tuple index)
       (svref (tuple-tail tuple) (nextid index))
       (loop :with shift := (tuple-shift tuple)
@@ -179,8 +169,9 @@ nodes plus the number of elements in the tail.
 ;; still 2x slower than clojure... but why?
 (defmethod insert ((tuple %tuple) index val)
   (declare (optimize speed))
+  (declare (type (unsigned-byte 32) index))
   (if (tuple-index-in-tail? tuple index)
-      (let ((tail (copy-tail (tuple-tail tuple))))
+      (let ((tail (copy-seq (tuple-tail tuple))))
         (setf (aref tail (nextid index)) val)
         ;; Can share everything else
         (make-tuple
@@ -216,8 +207,11 @@ nodes plus the number of elements in the tail.
 ;; let  count
 (defun tuple-push-tail (tuple val)
   (declare (optimize speed))
-  (let ((tail (copy-tail (tuple-tail tuple))))
-    (setf (svref tail (nextid (tuple-count tuple))) val)
+  (declare (type %tuple tuple))
+  (let ((tail (copy-seq (tuple-tail tuple)))
+        (idx (nextid (tuple-count tuple))))
+    (declare (type (unsigned-byte 32) idx))
+    (setf (aref tail idx) val)
     (make-tuple :shift (tuple-shift tuple)
                 :count (1+ (tuple-count tuple))
                 :root (tuple-root tuple)
@@ -228,7 +222,7 @@ nodes plus the number of elements in the tail.
 ;; FIXME could reuse tuple-grow-from-tail
 (defun tuple-grow-share-root (tuple val)
   "Incorporate current tail into node tree, push val to a new tail, increasing tree depth"
-  (let ((root (empty-node)))
+  (let ((root +empty-node+))
 
     ;; share whole thing on the 'left'
     (setf (aref (node-array root) 0) (tuple-root tuple))
@@ -241,14 +235,14 @@ nodes plus the number of elements in the tail.
           :with index := (1- (tuple-count tuple))
 
           ;; increase tree depth
-          :with shift := (+ 5 (tuple-shift tuple))
+          :with shift fixnum := (+ 5 (the fixnum (tuple-shift tuple)))
 
-          :for level :downfrom shift :above 0 :by 5
+          :for level fixnum :downfrom (the fixnum shift) :above 0 :by 5
           :for nextid := (nextid index level)
 
           ;; make a new path to leaf
-          :for node := (setf node root next-node (empty-node))
-            :then (setf next-node (empty-node))
+          :for node := (setf node root next-node (copy-node +empty-node+))
+            :then (setf next-node (copy-node +empty-node+))
 
           :finally
 
@@ -257,7 +251,7 @@ nodes plus the number of elements in the tail.
              (setf (node-array node) (tuple-tail tuple))
 
              ;; place the incoming val in a fresh tail
-             (let ((tail (empty-tail)))
+             (let ((tail (copy-seq +empty-array+)))
                (setf (svref tail 0) val)
 
                (return (make-tuple
@@ -274,14 +268,14 @@ nodes plus the number of elements in the tail.
         ;; Copy root, because we're making a new path to leaf
         :with root := (copy-node (tuple-root tuple))
 
-        :with tail := (empty-tail)
+        :with tail := (copy-seq +empty-array+)
         :with node := root
         :for level :downfrom shift :above 0 :by 5
         :for nextid := (nextid index level)
         :do (setf next-node
                   (if next-node
                       (copy-node next-node)
-                      (empty-node))
+                      (copy-node +empty-node+))
                   node next-node)
         :finally
            (setf (svref tail 0) val)
@@ -302,7 +296,7 @@ nodes plus the number of elements in the tail.
          (tuple-grow-from-tail tuple val))))
 
 (defmethod count ((tuple %tuple))
-  (tuple-count tuple))
+  (the (unsigned-byte 32) (tuple-count tuple)))
 
 (defstruct (%slice (:conc-name slice-)
                    (:constructor make-slice)
@@ -313,7 +307,7 @@ Should support all the operations like a normal tuple
   "
 
   ;; The original tuple
-  (tuple (empty-tuple) :type tuple :read-only t)
+  (tuple +empty-tuple+ :type tuple :read-only t)
 
   ;; Where the view on the original tuple begins
   (start 0 :type (unsigned-byte 32) :read-only t)
@@ -338,6 +332,7 @@ Should support all the operations like a normal tuple
 
 ;; insert on slice is just insert on the backing tuple with index+start
 (defmethod insert ((tuple %slice) index val)
+  (declare (type (unsigned-byte 32) index))
   (let ((start (slice-start tuple)))
     (make-slice :start start
                 :end (slice-end tuple)
@@ -348,16 +343,18 @@ Should support all the operations like a normal tuple
 
 ;; subvec on slice is just make a slice with different start and end
 (defmethod slice ((tuple %slice) start &optional (end (count tuple)))
+  (declare (type (unsigned-byte 32) start end))
   (make-slice :start (+ start (slice-start tuple))
               :end (+ end (slice-start tuple))
               :tuple (slice-tuple tuple)))
 
 ;; count on slice is (- end start)
 (defmethod count ((tuple %slice))
-  (- (slice-end tuple) (slice-start tuple)))
+  (the (unsigned-byte 32) (- (slice-end tuple) (slice-start tuple))))
 
 ;; lookup on slice is lookup on backing tuple with index+start
 (defmethod lookup ((tuple %slice) index)
+  (declare (type (unsigned-byte 32) index))
   (lookup (slice-tuple tuple) (+ index (slice-start tuple))))
 
 (defmethod peek ((tuple tuple))
@@ -365,11 +362,11 @@ Should support all the operations like a normal tuple
 
 (defmethod tuple (&rest elems)
   "Create a tuple containing arbitrary elems"
-  (cl:reduce 'conj elems :initial-value (empty-tuple)))
+  (cl:reduce 'conj elems :initial-value +empty-tuple+))
 
 ;; FIXME implement sequence protocol
 (defun sequence->tuple (sequence)
-  (cl:reduce 'conj sequence :initial-value (empty-tuple)))
+  (cl:reduce 'conj sequence :initial-value +empty-tuple+))
 
 
 ;;; utility
@@ -419,5 +416,5 @@ Should support all the operations like a normal tuple
 
 (defmethod print-object ((object tuple) stream)
   (print-unreadable-object (object stream :type t)
-    (loop :for i :below (count object)
+    (loop :for i fixnum :below (count object)
           :do (format stream "~s " (lookup object i)))))
