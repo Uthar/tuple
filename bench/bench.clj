@@ -17,7 +17,7 @@
 ;; 2kk random insert
 (time
  (dotimes [_ 2]
- (dotimes [n 1e6] (assoc v n (rand 100)))))
+ (dotimes [n 1e6] (assoc v n n))))
 
 
 ;; 1kkk lookups

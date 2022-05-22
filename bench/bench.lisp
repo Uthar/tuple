@@ -25,7 +25,7 @@
 (bench
   (dotimes (_ 2)
   (dotimes (n (floor 1e6))
-    (insert tup n (random 100)))))
+    (insert tup n n))))
 
   ;; )
 
