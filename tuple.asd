@@ -1,7 +1,7 @@
 (defsystem :tuple
   :description "Immutable, persistent tuple (vector) data structure"
   :version "0.1.0"
-  :license "FreeBSD"
+  :license "GPLv3"
   :pathname "src"
   :components ((:file "package")
                (:file "tuple"))

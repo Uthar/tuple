@@ -12,11 +12,11 @@
 
 (defvar range (range* 1e6))
 
-;; 1kk random conj
+;; 1kk random append
 (bench
-  (tuple:count (cl:reduce #'conj range :initial-value (tuple))))
+  (tuple:count (cl:reduce #'append range :initial-value (tuple))))
 
-(defparameter tup (cl:reduce #'conj range :initial-value (tuple)))
+(defparameter tup (cl:reduce #'append range :initial-value (tuple)))
 
 ;; 2kk random insert
 ;; (sb-sprof:with-profiling (:max-samples 1000

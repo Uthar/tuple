@@ -121,4 +121,4 @@ implementation, though).
 
 ## license
 
-FreeBSD - see COPYING
+GPLv3

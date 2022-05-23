@@ -1,6 +1,6 @@
 (defpackage :tuple
   (:use :cl)
-  (:shadow :pop :count :equal :reduce :map)
+  (:shadow :pop :count :equal :reduce :map :remove :append)
   (:export
 
    ;; Both a type and a creation function
@@ -9,13 +9,14 @@
    ;; Functions for operating on tuples
    :lookup
    :insert
-   :conj
+   :append
    :count
    :pop
    :slice
    :peek
    :equal
    :concat
+   :remove
 
    ;; higher-order functions
    :map
