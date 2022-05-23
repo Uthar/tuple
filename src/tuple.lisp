@@ -144,10 +144,10 @@ nodes plus the number of elements in the tail.
   (declare (optimize speed))
   (logand (ash index (- shift)) #b11111))
 
-(declaim (inline tuple-should-grow-new-root?))
+(declaim (inline tree-full-p))
 
 ;; tuple-full-p
-(defun tuple-should-grow-new-root? (tuple)
+(defun tree-full-p (tuple)
   (declare (optimize speed))
   (let ((count (tuple-count tuple))
         (shift (tuple-shift tuple)))
@@ -159,11 +159,11 @@ nodes plus the number of elements in the tail.
         ;; tree is full
         (expt 2 (+ 5 shift))))))
 
-(declaim (inline tuple-index-in-tail?))
+(declaim (inline tail-index-p))
 (declaim
- (ftype (function (tuple (unsigned-byte 32)) boolean) tuple-index-in-tail?))
+ (ftype (function (tuple (unsigned-byte 32)) boolean) tail-index-p))
 
-(defun tuple-index-in-tail? (tuple index)
+(defun tail-index-p (tuple index)
   (declare (optimize speed))
   (let* ((count (tuple-count tuple))
          ;; Nodes are always full 32 arrays, so this gets the number of
@@ -175,7 +175,7 @@ nodes plus the number of elements in the tail.
 
 (defmethod lookup ((tuple %tuple) index)
   (declare (optimize speed))
-  (if (tuple-index-in-tail? tuple index)
+  (if (tail-index-p tuple index)
       (svref (tuple-tail tuple) (nextid index))
       (loop :with shift := (tuple-shift tuple)
             :with root-array := (node-array (tuple-root tuple))
@@ -190,7 +190,7 @@ nodes plus the number of elements in the tail.
 ;; still 2x slower than clojure... but why?
 (defmethod insert ((tuple %tuple) index val)
   (declare (optimize speed))
-  (if (tuple-index-in-tail? tuple index)
+  (if (tail-index-p tuple index)
       (let ((tail (copy-tail (tuple-tail tuple))))
         (setf (aref tail (nextid index)) val)
         ;; Can share everything else
@@ -213,15 +213,15 @@ nodes plus the number of elements in the tail.
                                    :tail (tuple-tail tuple)
                                    :count (tuple-count tuple))))))
 
-(declaim (inline tuple-space-in-tail?))
+(declaim (inline tail-full-p))
 ;; tail-full-p
-(defun tuple-space-in-tail? (tuple)
+(defun tail-full-p (tuple)
   ;; if count is a multiple of 32, then the tail is full, since it
   ;; gets flushed during every 33th append
   (declare (optimize speed))
   (let ((count (tuple-count tuple)))
-    (or (< count 32)
-        (not (zerop (mod count 32))))))
+    (and (plusp count)
+         (zerop (mod count 32)))))
 
 (declaim (inline tuple-push-tail))
 ;; let  count
@@ -307,9 +307,9 @@ nodes plus the number of elements in the tail.
               :tail tail))))
 
 (defmethod append ((tuple %tuple) val)
-  (cond ((tuple-space-in-tail? tuple)
+  (cond ((not (tail-full-p tuple))
          (tuple-push-tail tuple val))
-        ((tuple-should-grow-new-root? tuple)
+        ((tree-full-p tuple)
          (tuple-grow-share-root tuple val))
         (t
          (tuple-grow-from-tail tuple val))))
