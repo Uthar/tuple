@@ -187,7 +187,6 @@ nodes plus the number of elements in the tail.
 
 (define-symbol-macro next-node (svref (node-array node) nextid))
 
-;; still 2x slower than clojure... but why?
 (defmethod insert ((tuple %tuple) index val)
   (declare (optimize speed))
   (if (tail-index-p tuple index)
