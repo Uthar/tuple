@@ -6,24 +6,47 @@
 (defmacro bench (&body body)
   `(progn
      (time ,@body)
-     (trivial-garbage:gc :full t)))
+     (sb-ext:gc :full t)))
 
-;; (single core)
+(defvar range (range* 1e6))
 
-;; 1kk random conj
+(defvar a nil)
+
 (bench
-  (cl:reduce #'conj (range* 1e6) :initial-value (tuple)))
+  (setf a (make-array 1000000 :initial-element 42)))
 
-(defparameter tup (cl:reduce #'conj (range* 1e6) :initial-value (tuple)))
-
-;; 2kk random insert
 (bench
   (dotimes (_ 2)
   (dotimes (n (floor 1e6))
-    (insert tup n (random 100)))))
+    (setf (aref a n) n))))
+
+(bench
+  (dotimes (_ 10)
+  (dotimes (n (floor 1e6))
+    (aref a n))))
+
+
+(defvar tup nil)
+
+;; 1kk random append
+(bench
+  (setf tup (cl:reduce #'append range :initial-value (tuple))))
+
+
+;; 2kk random insert
+;; (sb-sprof:with-profiling (:max-samples 1000
+;;                           :report :flat
+;;                           :loop nil)
+(bench
+  (dotimes (_ 2)
+  (dotimes (n (floor 1e6))
+    (insert tup n n))))
+
+  ;; )
 
 ;; 1kkk lookups
 (bench
   (dotimes (_ 10)
   (dotimes (n (floor 1e6))
     (lookup tup n))))
+

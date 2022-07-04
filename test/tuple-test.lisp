@@ -2,6 +2,9 @@
 
 (in-suite :tuple)
 
+(defun sequence->tuple (sequence)
+  (cl:reduce #'tuple:append sequence :initial-value (tuple)))
+
 (defun range (n)
   (loop for x below n collect x))
 
@@ -21,7 +24,7 @@
 
 (test immutable
   (let* ((tup1 (tuple "foo" "bar"))
-         (tup2 (conj tup1 "baz")))
+         (tup2 (append tup1 "baz")))
     (insert tup2 0 :x)
     (is (equal (lookup tup1 0) "foo"))
     (is (equal (lookup tup2 0) "foo"))
@@ -32,7 +35,7 @@
 
 (test tail-copied
   (let* ((tup1 (sequence->tuple (range 32)))
-         (tup2 (conj tup1 :foo)))
+         (tup2 (append tup1 :foo)))
     (is (= (count tup1) 32))
     (is (= (count tup2) 33))
     (is (= (length (tuple::tuple-tail tup1)) 32))
@@ -46,7 +49,7 @@
 
 (test share-root
   (let* ((tup1 (sequence->tuple (range 1056)))
-         (tup2 (conj tup1 :foo)))
+         (tup2 (append tup1 :foo)))
     (is (= (count tup1) 1056))
     (is (= (count tup2) 1057))
     (is (= (length (tuple::tuple-tail tup1)) 32))
@@ -71,9 +74,9 @@
   (is (= 1056 (count (pop (sequence->tuple (range 1057))))))
   (is (= 32 (count (pop (sequence->tuple (range 33))))))
 
-  (is (eq :foo (peek (conj (pop (pop (tuple 1 2 3 4))) :foo))))
-  (is (eq :foo (peek (conj (pop (pop (sequence->tuple (range 1057)))) :foo))))
-  (is (eq :foo (peek (conj (pop (pop (sequence->tuple (range 33)))) :foo)))))
+  (is (eq :foo (peek (append (pop (pop (tuple 1 2 3 4))) :foo))))
+  (is (eq :foo (peek (append (pop (pop (sequence->tuple (range 1057)))) :foo))))
+  (is (eq :foo (peek (append (pop (pop (sequence->tuple (range 33)))) :foo)))))
 
 
 (test slice-test
@@ -100,4 +103,13 @@
 
 (test concat-test
   (is (tuple:equal (tuple 1 2 3 4) (tuple:concat (tuple 1 2) (tuple 3 4))))
-  (is (tuple:equal (tuple:concat (tuple 1 2) (tuple 3 4)) (tuple 1 2 3 4))))
+  (is (tuple:equal (tuple:concat (tuple 1 2) (tuple 3 4)) (tuple 1 2 3 4)))
+  (is (tuple:equal (tuple:concat (tuple 1 2) (tuple 3 4)) (slice (tuple -1 0 1 2 3 4 5 6) 2 6)))
+  (is (tuple:equal (tuple:concat (tuple 1 2) (slice (tuple 1 2 3 4 5 6) 2 6)) (tuple 1 2 3 4 5 6))))
+
+(test remove-test
+  (is (tuple:equal (tuple 1 2 3 4) (tuple:remove (tuple 0 1 2 3 4) 0)))
+  (is (tuple:equal (tuple 0 2 3 4) (tuple:remove (tuple 0 1 2 3 4) 1)))
+  (is (tuple:equal (tuple 0 1 3 4) (tuple:remove (tuple 0 1 2 3 4) 2)))
+  (is (tuple:equal (tuple 0 1 2 4) (tuple:remove (tuple 0 1 2 3 4) 3)))
+  (is (tuple:equal (tuple 0 1 2 3) (tuple:remove (tuple 0 1 2 3 4) 4))))

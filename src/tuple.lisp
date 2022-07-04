@@ -1,6 +1,6 @@
-;;; An immutable, persistent vector data structure, not unlike Clojure's.
-
 (in-package :tuple)
+
+(declaim (optimize speed))
 
 ;;; API
 
@@ -10,19 +10,26 @@
 
 (defgeneric lookup (tuple index)
   (:documentation
-   "Return element at index in log32N time"))
+   "Return the element at index"))
 
 (defgeneric insert (tuple index val)
   (:documentation
-   "Return a new tuple that has val at index and shares structure with the old one."))
+   "Return a new tuple that has val at index"))
 
-(defgeneric conj (tuple val)
+(defgeneric remove (tuple index)
+  (:documentation
+   "Return a new tuple with the value at index removed and the other
+values shifted to fill the missing spot."))
+
+(defgeneric append (tuple val)
   (:documentation
    "Return a new, 1+ sized tuple with val at the back"))
 
 (defgeneric count (tuple)
   (:documentation
-   "Return, in constant time, the number of objects in a tuple"))
+   "Return the number of objects in a tuple"))
+
+(declaim (ftype (function (tuple) (unsigned-byte 32)) count))
 
 (defgeneric pop (tuple)
   (:documentation
@@ -30,25 +37,19 @@
 
 (defgeneric slice (tuple start &optional end)
   (:documentation
-   "Return a new tuple containing only items indexed from start to end.
-
-    No lookups or insertions are performed in the process, so this
-    operation is very fast."))
+   "Return a new tuple containing only items indexed from start to end."))
 
 (defgeneric peek (tuple)
   (:documentation
-   "Return, in constant time, the last element of tuple"))
+   "Return the last element of tuple"))
+
+(defgeneric concat (tuple1 tuple2)
+  (:documentation
+   "Return a tuple created by concatenating two other tuples"))
 
 (defgeneric equal (x y)
   (:documentation
-   "Return true if two objects are equal.
-
-Extension point for teaching tuples about new data types with
-different equality semantics"))
-
-(defgeneric concat (a b)
-  (:documentation
-   "Return the concatenation of a and b"))
+   "Return true if two objects are equal"))
 
 (defstruct (tuple (:constructor nil) (:copier nil))
   "Parent type for internal tuple implementations, also the API type")
@@ -79,7 +80,7 @@ from when descending down the tree of nodes. To find the next nodes'
 index, take the last 5 bits of the shifted number.
 
 Tail is a vector containing the last 32 elements of the tuple. Insert,
-lookup and conj is faster with it because there's no need to traverse
+lookup and append is faster with it because there's no need to traverse
 the tree for values in the tail.
 
 Nodes are always (simple-vector 32) because the tail gets copied to a
@@ -118,6 +119,12 @@ nodes plus the number of elements in the tail.
 
 (declaim (inline copy-node))
 
+;; (defun copy-node-array (node)
+;;   (declare (optimize speed))
+;;   (let ((array (node-array node))
+;;         (new-array (make-array 32 :initial-contents
+;;     (
+
 (defun copy-node (node)
   (declare (optimize speed))
   (make-node :array (copy-seq (node-array node))))
@@ -137,10 +144,10 @@ nodes plus the number of elements in the tail.
   (declare (optimize speed))
   (logand (ash index (- shift)) #b11111))
 
-(declaim (inline tuple-should-grow-new-root?))
+(declaim (inline tree-full-p))
 
 ;; tuple-full-p
-(defun tuple-should-grow-new-root? (tuple)
+(defun tree-full-p (tuple)
   (declare (optimize speed))
   (let ((count (tuple-count tuple))
         (shift (tuple-shift tuple)))
@@ -152,11 +159,15 @@ nodes plus the number of elements in the tail.
         ;; tree is full
         (expt 2 (+ 5 shift))))))
 
-(declaim (inline tuple-index-in-tail?))
+(declaim (inline tail-index-p))
+(declaim
+ (ftype (function (tuple (unsigned-byte 32)) boolean) tail-index-p))
 
-(defun tuple-index-in-tail? (tuple index)
+(defun tail-index-p (tuple index)
   (declare (optimize speed))
   (let* ((count (tuple-count tuple))
+         ;; Nodes are always full 32 arrays, so this gets the number of
+         ;; elements that are outside the nodes, and so, are in the tail.
          (tail-count (1+ (mod (1- count) 32)))
          (threshold (- count tail-count)))
     (or (<= count 32)  ;; needed?
@@ -164,7 +175,7 @@ nodes plus the number of elements in the tail.
 
 (defmethod lookup ((tuple %tuple) index)
   (declare (optimize speed))
-  (if (tuple-index-in-tail? tuple index)
+  (if (tail-index-p tuple index)
       (svref (tuple-tail tuple) (nextid index))
       (loop :with shift := (tuple-shift tuple)
             :with root-array := (node-array (tuple-root tuple))
@@ -176,10 +187,9 @@ nodes plus the number of elements in the tail.
 
 (define-symbol-macro next-node (svref (node-array node) nextid))
 
-;; still 2x slower than clojure... but why?
 (defmethod insert ((tuple %tuple) index val)
   (declare (optimize speed))
-  (if (tuple-index-in-tail? tuple index)
+  (if (tail-index-p tuple index)
       (let ((tail (copy-tail (tuple-tail tuple))))
         (setf (aref tail (nextid index)) val)
         ;; Can share everything else
@@ -202,15 +212,15 @@ nodes plus the number of elements in the tail.
                                    :tail (tuple-tail tuple)
                                    :count (tuple-count tuple))))))
 
-(declaim (inline tuple-space-in-tail?))
+(declaim (inline tail-full-p))
 ;; tail-full-p
-(defun tuple-space-in-tail? (tuple)
+(defun tail-full-p (tuple)
   ;; if count is a multiple of 32, then the tail is full, since it
-  ;; gets flushed during every 33th conj
+  ;; gets flushed during every 33th append
   (declare (optimize speed))
   (let ((count (tuple-count tuple)))
-    (or (< count 32)
-        (not (zerop (mod count 32))))))
+    (and (plusp count)
+         (zerop (mod count 32)))))
 
 (declaim (inline tuple-push-tail))
 ;; let  count
@@ -238,13 +248,13 @@ nodes plus the number of elements in the tail.
           ;; tree and tail are full at this point
 
           ;; going down the last node (because of shift+5) - NOT the last value
-          :with index := (1- (tuple-count tuple))
+          :with index fixnum := (1- (tuple-count tuple))
 
           ;; increase tree depth
-          :with shift := (+ 5 (tuple-shift tuple))
+          :with shift fixnum := (+ 5 (tuple-shift tuple))
 
-          :for level :downfrom shift :above 0 :by 5
-          :for nextid := (nextid index level)
+          :for level fixnum :downfrom shift :above 0 :by 5
+          :for nextid fixnum := (nextid index level)
 
           ;; make a new path to leaf
           :for node := (setf node root next-node (empty-node))
@@ -265,6 +275,8 @@ nodes plus the number of elements in the tail.
                         :shift shift
                         :count (1+ (tuple-count tuple))
                         :tail tail))))))
+
+(declaim (inline make-tuple make-node tuple-grow-from-tail))
 
 (defun tuple-grow-from-tail (tuple val)
   "Incorporate current tail into node tree, push val to a new tail"
@@ -293,10 +305,10 @@ nodes plus the number of elements in the tail.
               :count (1+ (tuple-count tuple))
               :tail tail))))
 
-(defmethod conj ((tuple %tuple) val)
-  (cond ((tuple-space-in-tail? tuple)
+(defmethod append ((tuple %tuple) val)
+  (cond ((not (tail-full-p tuple))
          (tuple-push-tail tuple val))
-        ((tuple-should-grow-new-root? tuple)
+        ((tree-full-p tuple)
          (tuple-grow-share-root tuple val))
         (t
          (tuple-grow-from-tail tuple val))))
@@ -304,53 +316,34 @@ nodes plus the number of elements in the tail.
 (defmethod count ((tuple %tuple))
   (tuple-count tuple))
 
+;;; Slices
+
 (defstruct (%slice (:conc-name slice-)
                    (:constructor make-slice)
                    (:include tuple))
-  "
-A narrowed view on a tuple, for efficient subvec.
-Should support all the operations like a normal tuple
-  "
-
-  ;; The original tuple
   (tuple (empty-tuple) :type tuple :read-only t)
-
-  ;; Where the view on the original tuple begins
   (start 0 :type (unsigned-byte 32) :read-only t)
-
-  ;; Where it ends
   (end 0 :type (unsigned-byte 32) :read-only t))
 
-(defmethod slice ((tuple %tuple) start &optional (end (count tuple)))
-  (make-slice :start start :end end :tuple tuple))
-
-;; conj on slice is increase end and insert there to the backing tuple
-;; if reached end of backing tuple, conj on it instead
-(defmethod conj ((tuple %slice) val)
+;; append on slice is increase end and insert there to the backing tuple
+;; if reached end of backing tuple, append on it instead
+(defmethod append ((tuple %slice) val)
   (let ((end (slice-end tuple))
         (backing-tuple (slice-tuple tuple)))
     (make-slice :start (slice-start tuple)
                 :end (1+ end)
                 :tuple
-                (if (= end (tuple-count backing-tuple))
-                    (conj   backing-tuple val)
+                (if (= end (count backing-tuple))
+                    (append backing-tuple val)
                     (insert backing-tuple end val)))))
 
 ;; insert on slice is just insert on the backing tuple with index+start
 (defmethod insert ((tuple %slice) index val)
   (let ((start (slice-start tuple)))
+    (declare (type (unsigned-byte 32) start index))
     (make-slice :start start
                 :end (slice-end tuple)
                 :tuple (insert (slice-tuple tuple) (+ index start) val))))
-
-(defmethod pop ((tuple tuple))
-  (slice tuple 0 (1- (count tuple))))
-
-;; subvec on slice is just make a slice with different start and end
-(defmethod slice ((tuple %slice) start &optional (end (count tuple)))
-  (make-slice :start (+ start (slice-start tuple))
-              :end (+ end (slice-start tuple))
-              :tuple (slice-tuple tuple)))
 
 ;; count on slice is (- end start)
 (defmethod count ((tuple %slice))
@@ -358,42 +351,60 @@ Should support all the operations like a normal tuple
 
 ;; lookup on slice is lookup on backing tuple with index+start
 (defmethod lookup ((tuple %slice) index)
-  (lookup (slice-tuple tuple) (+ index (slice-start tuple))))
+  (let ((start (slice-start tuple)))
+    (declare (type (unsigned-byte 32) index start))
+    (lookup (slice-tuple tuple) (+ index start))))
+
+;;; Concatenates
+
+(defstruct (%cat (:conc-name cat-)
+                 (:constructor make-cat)
+                 (:include tuple))
+  (a (empty-tuple) :type tuple :read-only t)
+  (b (empty-tuple) :type tuple :read-only t))
+
+(defmethod lookup ((tuple %cat) index)
+  (let ((a (cat-a tuple))
+        (b (cat-b tuple)))
+    (if (< index (count a))
+        (lookup a index)
+        (lookup b (- index (count a))))))
+
+(defmethod insert ((tuple %cat) index val)
+  (let ((a (cat-a tuple))
+        (b (cat-b tuple)))
+    (if (< index (count a))
+        (insert a index val)
+        (insert b (- index (count a)) val))))
+
+(defmethod append ((tuple %cat) val)
+  (append (cat-b tuple) val))
+
+(defmethod count ((tuple %cat))
+  (+ (count (cat-a tuple))
+     (count (cat-b tuple))))
+
+;;; Shared methods
 
 (defmethod peek ((tuple tuple))
   (lookup tuple (1- (count tuple))))
 
+(defmethod pop ((tuple tuple))
+  (slice tuple 0 (1- (count tuple))))
+
+(defmethod slice ((tuple tuple) start &optional (end (count tuple)))
+  (make-slice :start start :end end :tuple tuple))
+
+(defmethod concat ((tuple1 tuple) (tuple2 tuple))
+  (make-cat :a tuple1 :b tuple2))
+
+(defmethod remove ((tuple tuple) index)
+  (concat (slice tuple 0 index)
+          (slice tuple (1+ index))))
+
 (defmethod tuple (&rest elems)
   "Create a tuple containing arbitrary elems"
-  (cl:reduce 'conj elems :initial-value (empty-tuple)))
-
-;; FIXME implement sequence protocol
-(defun sequence->tuple (sequence)
-  (cl:reduce 'conj sequence :initial-value (empty-tuple)))
-
-
-;;; utility
-
-;; these are probably sloooow
-
-(defun map (fn tuple)
-  (sequence->tuple
-   (loop for x below (count tuple)
-         collect (funcall fn (lookup tuple x)))))
-
-(defun filter (fn tuple)
-  (sequence->tuple
-   (loop for i below (count tuple)
-         for x = (lookup tuple i)
-         if (funcall fn x)
-           collect x)))
-
-(defmethod tuple->list ((tuple tuple))
-  (loop for x below (count tuple)
-        collect (lookup tuple x)))
-
-(defun reduce (fn tuple)
-  (cl:reduce fn (tuple->list tuple)))
+  (cl:reduce #'append elems :initial-value (empty-tuple)))
 
 (defmethod equal ((val1 t) (val2 t))
   "Return true if two vals are cl:equal"
@@ -401,23 +412,16 @@ Should support all the operations like a normal tuple
 
 (defmethod equal ((tuple1 tuple) (tuple2 tuple))
   "Return true if two tuples are equal in size, and their elements, in order, are tuple:equal"
-  (and (= (count tuple1) (count tuple2))
-       (loop for x below (count tuple1)
-             for y below (count tuple2)
-             always (equal (lookup tuple1 x) (lookup tuple2 y)))))
-
-(defmethod concat ((a tuple) (b tuple))
-  (loop with tuple = a
-        for n below (count b)
-        do (setf tuple (conj tuple (lookup b n)))
-        finally (return tuple)))
-
-;; is this too slow?
-(defun tuple-cons (x tuple)
-  (sequence->tuple
-   (cons x (tuple->list tuple))))
+  (let ((cnt1 (count tuple1))
+        (cnt2 (count tuple2)))
+    (declare (type fixnum cnt1 cnt2))
+    (when (= cnt1 cnt2)
+      (loop for x fixnum below cnt1
+            always (equal (lookup tuple1 x)
+                          (lookup tuple2 x))))))
 
 (defmethod print-object ((object tuple) stream)
+  (declare (type stream stream))
   (print-unreadable-object (object stream :type t)
-    (loop :for i :below (count object)
+    (loop :for i fixnum :below (count object)
           :do (format stream "~s " (lookup object i)))))

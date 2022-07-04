@@ -5,17 +5,19 @@
 (defn range* [n]
   (take n (repeatedly rand)))
 
+(def arange (range* 1e6))
+
 ;; 1kk conj
 (time
- (do (reduce conj `(~(vector) ~@(range* 1e6))) nil))
+ (count (reduce conj arange (vector))))
 
-(def v (apply vector (range 1e6)))
+(def v (into (vector) (reduce conj arange (vector))))
 
 
 ;; 2kk random insert
 (time
  (dotimes [_ 2]
- (dotimes [n 1e6] (assoc v n (rand 100)))))
+ (dotimes [n 1e6] (assoc v n n))))
 
 
 ;; 1kkk lookups
